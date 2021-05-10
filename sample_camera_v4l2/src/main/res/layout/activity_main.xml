@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <com.hsj.camera.CameraView
+        android:id="@+id/sv_rgb"
+        android:layout_width="400px"
+        android:layout_height="640px"
+        android:layout_alignParentStart="true" />
+
+    <SurfaceView
+        android:id="@+id/sv_ir"
+        android:layout_width="400px"
+        android:layout_height="640px"
+        android:layout_alignParentEnd="true" />
+
+    <Button
+        android:id="@+id/btn_create"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="create"
+        android:textAllCaps="false"
+        android:layout_below="@id/sv_rgb"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="10dp"
+        android:onClick="create"/>
+
+    <Button
+        android:id="@+id/btn_start"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="start"
+        android:textAllCaps="false"
+        android:layout_below="@id/btn_create"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="10dp"
+        android:onClick="start"/>
+
+    <Button
+        android:id="@+id/btn_stop"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="stop"
+        android:textAllCaps="false"
+        android:layout_below="@id/btn_start"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="10dp"
+        android:onClick="stop"/>
+
+    <Button
+        android:id="@+id/btn_destroy"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="destroy"
+        android:textAllCaps="false"
+        android:layout_below="@id/btn_stop"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="10dp"
+        android:onClick="destroy"/>
+
+</RelativeLayout>

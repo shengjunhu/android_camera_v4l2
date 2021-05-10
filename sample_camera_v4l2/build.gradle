@@ -1,0 +1,78 @@
+apply plugin: rootProject.ext.plugins.application
+
+android {
+    compileSdkVersion rootProject.ext.android.compileSdkVersion
+    buildToolsVersion rootProject.ext.android.buildToolsVersion
+    defaultConfig {
+        applicationId rootProject.ext.android.applicationId
+        minSdkVersion rootProject.ext.android.minSdkVersion
+        targetSdkVersion rootProject.ext.android.targetSdkVersion
+        versionCode rootProject.ext.android.versionCode
+        versionName rootProject.ext.android.versionName
+
+        testInstrumentationRunner rootProject.ext.dependencies.testInstrumentationRunner
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            zipAlignEnabled true
+            debuggable false
+            jniDebuggable false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lintOptions {
+        abortOnError false
+        checkReleaseBuilds false
+        warning 'InvalidPackage'
+        disable 'GoogleAppIndexingWarning'
+    }
+
+    dexOptions {
+        javaMaxHeapSize "4g"
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "sample_camera_v4l2_v${variant.versionName}_v${variant.versionCode}_${variant.buildType.name}.apk"
+        }
+    }
+
+}
+
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    testImplementation rootProject.ext.dependencies.testJunit
+    androidTestImplementation rootProject.ext.dependencies.testExt
+    androidTestImplementation rootProject.ext.dependencies.testEspresso
+
+    //JetPack
+    implementation rootProject.ext.dependencies.core
+    implementation rootProject.ext.dependencies.appcompat
+    implementation rootProject.ext.dependencies.annotations
+    implementation rootProject.ext.dependencies.constraint_layout
+
+    //内存泄漏监控
+    debugImplementation rootProject.ext.dependencies.leak_canary
+
+    //sdk_camera_v4l2
+    implementation project(path: ':sdk_camera_v4l2')
+}
