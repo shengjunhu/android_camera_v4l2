@@ -5,9 +5,6 @@
 #ifndef ANDROID_CAMERA_V4L2_NATIVEAPI_H
 #define ANDROID_CAMERA_V4L2_NATIVEAPI_H
 
-#include <jni.h>
-#include <android/native_window_jni.h>
-
 typedef enum ActionInfo{
     ACTION_SUCCESS                = 0,
     ACTION_ERROR_CREATE           = 9,
@@ -18,7 +15,7 @@ typedef enum ActionInfo{
     ACTION_ERROR_AUTO_EXPOSURE    = 26,
     ACTION_ERROR_SET_EXPOSURE     = 27,
     ACTION_ERROR_SET_W_H          = 28,
-    ACTION_ERROR_SET_PREVIEW      = 29,
+    ACTION_ERROR_CALLBACK         = 29,
     ACTION_ERROR_START            = 30,
     ACTION_ERROR_STOP             = 40,
     ACTION_ERROR_CLOSE            = 50,

@@ -28,15 +28,19 @@ private:
     unsigned int frameWidth;
     unsigned int frameHeight;
     unsigned int pixelFormat;
+    uint8_t *outBuf;
     VideoBuffer *buffers;
     HwDecoder *hwDecoder;
+    size_t pixelBytes;
     jobject frameCallback;
-    ANativeWindow *preview;
+    jmethodID frameCallback_onFrame;
     const char* deviceName;
     volatile StatusInfo status;
     pthread_t thread_camera;
     ActionInfo prepareBuffer();
-    static void *loopFrame(void *args);
+    static void *loopThread(void *args);
+    void loopFrame(JNIEnv *env, Camera *camera);
+    void sendFrame(JNIEnv *env, uint8_t *data);
 
 public:
     Camera();
@@ -47,7 +51,6 @@ public:
     ActionInfo updateExposure(unsigned int level);
     ActionInfo setFrameSize(unsigned int width, unsigned int height, unsigned int pixel_format);
     ActionInfo setFrameCallback(JNIEnv *env, jobject frame_callback);
-    ActionInfo setPreview(ANativeWindow *window);
     ActionInfo start();
     ActionInfo stop();
     ActionInfo close();

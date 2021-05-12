@@ -10,7 +10,7 @@ import java.lang.reflect.Method;
  * @Class:Logger
  * @Desc:
  */
-public final class Logger {
+final class Logger {
 
     //////////////////////////////////////////////////////////////
     // Logger 功能如下：

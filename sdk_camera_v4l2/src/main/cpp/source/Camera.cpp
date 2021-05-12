@@ -4,9 +4,9 @@
 
 #include "Common.h"
 #include "Camera.h"
+#include <malloc.h>
 #include <sstream>
 #include <fstream>
-#include <ctime>
 #include <cstring>
 #include <cstdio>
 #include <cassert>
@@ -21,24 +21,20 @@
 #define MAX_BUFFER_COUNT 4
 #define MAX_DEV_VIDEO_INDEX 9
 
-long long timeMs() {
-    struct timeval time;
-    gettimeofday(&time, NULL);
-    return (long long)time.tv_sec * 1000 + time.tv_usec / 1000;
-}
-
 Camera::Camera() :
         fd(0),
+        pixelBytes(0),
         frameWidth(0),
         frameHeight(0),
         pixelFormat(0),
         thread_camera(0),
-        preview(NULL),
+        status(STATUS_READY),
+        outBuf(NULL),
         buffers(NULL),
         hwDecoder(NULL),
         deviceName(NULL),
         frameCallback(NULL),
-        status(STATUS_READY) {
+        frameCallback_onFrame(NULL){
 }
 
 Camera::~Camera() {
@@ -96,11 +92,25 @@ ActionInfo Camera::prepareBuffer() {
     return ACTION_SUCCESS;
 }
 
+void *Camera::loopThread(void *args){
+    auto *camera = reinterpret_cast<Camera *>(args);
+    if (LIKELY(camera)) {
+        JavaVM *vm = getVM();
+        JNIEnv *env;
+        // attach to JavaVM
+        vm->AttachCurrentThread(&env, NULL);
+        // never return until finish previewing
+        camera->loopFrame(env, camera);
+        // detach from JavaVM
+        vm->DetachCurrentThread();
+    }
+    pthread_exit(NULL);
+}
+
 long long time0 = 0;
 long long time1 = 0;
 
-void *Camera::loopFrame(void *args) {
-    auto *camera = reinterpret_cast<Camera *>(args);
+void Camera::loopFrame(JNIEnv *env, Camera *camera) {
     const int fd_count = camera->fd + 1;
     struct v4l2_buffer buffer;
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -119,31 +129,34 @@ void *Camera::loopFrame(void *args) {
             LOGW(TAG, "Loop frame failed: %s", strerror(errno))
             continue;
         } else if (camera->pixelFormat == 0) {
-            LOGD(TAG, "yuyv interval time = %lld", timeMs() - time0)
-            time0 = timeMs();
-            //memcpy(callbackBuffer, camera->buffers[buffer.index].start, buffer.length);
+            //LOGD(TAG, "yuyv interval time = %lld", timeMs() - time0)
+            //time0 = timeMs();
+            memcpy(outBuf, camera->buffers[buffer.index].start, buffer.length);
+            //YUYV->Java
+            sendFrame(env,outBuf);
         } else {
-            LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
-            time1 = timeMs();
+            //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
+            //time1 = timeMs();
             //MJPG->NV12
-            uint8_t* buf = camera->hwDecoder->process(camera->buffers[buffer.index].start, buffer.bytesused);
-            LOGD(TAG, "mjpeg2yuv: %lld", timeMs() - time1)
+            uint8_t* out = camera->hwDecoder->process(camera->buffers[buffer.index].start, buffer.bytesused);
+            //LOGD(TAG, "mjpeg2yuv: %lld", timeMs() - time1)
             //NV12->Java
-            //Save NV12
-            /*if (buf) {
-                FILE *fp = fopen("/sdcard/rgb_1280x800.yuv", "wb");
-                if (fp) {
-                    fwrite(buf, 1, camera->frameWidth*camera->frameHeight*1.5, fp);
-                    fclose(fp);
-                }
-            }*/
+            sendFrame(env,out);
         }
         if (0 > ioctl(camera->fd, VIDIOC_QBUF, &buffer)) {
             LOGW(TAG, "Loop frame: ioctl VIDIOC_QBUF %s", strerror(errno))
             continue;
         }
     }
-    pthread_exit(NULL);
+}
+
+void Camera::sendFrame(JNIEnv *env, uint8_t *data){
+    if (LIKELY(data) && LIKELY(frameCallback_onFrame)){
+        jobject frame = env->NewDirectByteBuffer(data, pixelBytes);
+        env->CallVoidMethod(frameCallback, frameCallback_onFrame, frame);
+        env->ExceptionClear();
+        env->DeleteLocalRef(frame);
+    }
 }
 
 //=======================================Public=====================================================
@@ -263,12 +276,15 @@ ActionInfo Camera::setFrameSize(unsigned int width, unsigned int height, unsigne
             return ACTION_ERROR_SET_W_H;
         } else {
             if (pixelFormat == 0){
+                pixelBytes = frameWidth * frameHeight * 2;
+                outBuf = (uint8_t *) calloc(1, pixelBytes);
                 if (hwDecoder){
                     hwDecoder->stop();
                     hwDecoder->destroy();
                     SAFE_DELETE(hwDecoder)
                 }
             } else {
+                pixelBytes = frameWidth * frameHeight *3/2;
                 if (hwDecoder == NULL){
                     hwDecoder = new HwDecoder();
                 }
@@ -310,30 +326,28 @@ ActionInfo Camera::setFrameSize(unsigned int width, unsigned int height, unsigne
 
 ActionInfo Camera::setFrameCallback(JNIEnv *env, jobject frame_callback) {
     if (STATUS_PARAM == getStatus()) {
-        frameCallback = frame_callback;
-        return ACTION_SUCCESS;
-    } else {
-        LOGW(TAG, "setFrameCallback: error status, %d", getStatus())
-        return ACTION_ERROR_SET_W_H;
-    }
-}
-
-ActionInfo Camera::setPreview(ANativeWindow *window){
-    if (STATUS_PARAM == getStatus()) {
-        if (preview != window) {
-            if (preview) ANativeWindow_release(preview);
-            preview = window;
-            if (LIKELY(preview)) {
-                ANativeWindow_setBuffersGeometry(preview, frameWidth,frameHeight,  WINDOW_FORMAT_RGBA_8888);
-                if (hwDecoder){
-                    hwDecoder->setPreview(preview);
+        if (!env->IsSameObject(frameCallback, frame_callback)){
+            if (frameCallback) {
+                env->DeleteGlobalRef(frameCallback);
+            }
+            if (frame_callback) {
+                jclass clazz = env->GetObjectClass(frame_callback);
+                if (LIKELY(clazz)) {
+                    frameCallback = frame_callback;
+                    frameCallback_onFrame = env->GetMethodID(clazz,"onFrame","(Ljava/nio/ByteBuffer;)V");
+                }
+                env->ExceptionClear();
+                if (!frameCallback_onFrame) {
+                    env->DeleteGlobalRef(frameCallback);
+                    frameCallback = NULL;
+                    frameCallback_onFrame = NULL;
                 }
             }
         }
         return ACTION_SUCCESS;
     } else {
-        LOGW(TAG, "setPreview: error status, %d", getStatus())
-        return ACTION_ERROR_SET_PREVIEW;
+        LOGW(TAG, "setFrameCallback: error status, %d", getStatus())
+        return ACTION_ERROR_CALLBACK;
     }
 }
 
@@ -355,7 +369,7 @@ ActionInfo Camera::start() {
                     }
                 }
                 //3-启动轮询线程
-                if (0 == pthread_create(&thread_camera, NULL, loopFrame, (void *) this)) {
+                if (0 == pthread_create(&thread_camera, NULL, loopThread, (void *) this)) {
                     LOGD(TAG, "start: success")
                     action = ACTION_SUCCESS;
                 } else {
@@ -434,12 +448,15 @@ ActionInfo Camera::close() {
 ActionInfo Camera::destroy() {
     LOGD(TAG, "destroy")
     fd = 0;
+    pixelBytes = 0;
     frameWidth = 0;
     frameHeight = 0;
     pixelFormat = 0;
     thread_camera = 0;
-    frameCallback = NULL;
     status = STATUS_READY;
+    frameCallback_onFrame = NULL;
+    frameCallback = NULL;
+    SAFE_FREE(outBuf)
     SAFE_FREE(buffers)
     SAFE_DELETE(hwDecoder)
     SAFE_DELETE(deviceName)

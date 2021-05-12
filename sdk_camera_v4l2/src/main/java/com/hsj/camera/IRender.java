@@ -1,6 +1,7 @@
 package com.hsj.camera;
 
 import android.opengl.GLSurfaceView;
+import java.nio.Buffer;
 
 /**
  * @Author:Hsj
@@ -8,12 +9,8 @@ import android.opengl.GLSurfaceView;
  * @Class:IRender
  * @Desc:
  */
-public abstract class IRender implements GLSurfaceView.Renderer {
-
-    public abstract void onResume();
-
-    public abstract void onPause();
-
-    public abstract int getTextureId();
-
+public interface IRender extends GLSurfaceView.Renderer {
+     void release();
+     void onRender(boolean isResume);
+     void updatePreview(Buffer frame);
 }

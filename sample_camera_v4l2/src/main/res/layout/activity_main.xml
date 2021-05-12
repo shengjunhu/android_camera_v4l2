@@ -6,63 +6,65 @@
     tools:context=".MainActivity">
 
     <com.hsj.camera.CameraView
-        android:id="@+id/sv_rgb"
+        android:id="@+id/preview"
         android:layout_width="400px"
         android:layout_height="640px"
-        android:layout_alignParentStart="true" />
+        android:layout_alignParentStart="true"
+        android:layout_marginTop="2dp" />
 
-    <SurfaceView
-        android:id="@+id/sv_ir"
+    <com.hsj.camera.CameraView
+        android:id="@+id/preview2"
         android:layout_width="400px"
         android:layout_height="640px"
-        android:layout_alignParentEnd="true" />
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="2dp" />
 
     <Button
         android:id="@+id/btn_create"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:text="create"
-        android:textAllCaps="false"
-        android:layout_below="@id/sv_rgb"
+        android:layout_below="@id/preview2"
         android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
         android:layout_marginEnd="20dp"
-        android:layout_marginTop="10dp"
-        android:onClick="create"/>
+        android:onClick="create"
+        android:text="create"
+        android:textAllCaps="false" />
 
     <Button
         android:id="@+id/btn_start"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:text="start"
-        android:textAllCaps="false"
         android:layout_below="@id/btn_create"
         android:layout_marginStart="20dp"
-        android:layout_marginEnd="20dp"
         android:layout_marginTop="10dp"
-        android:onClick="start"/>
+        android:layout_marginEnd="20dp"
+        android:onClick="start"
+        android:text="start"
+        android:textAllCaps="false" />
 
     <Button
         android:id="@+id/btn_stop"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:text="stop"
-        android:textAllCaps="false"
         android:layout_below="@id/btn_start"
         android:layout_marginStart="20dp"
-        android:layout_marginEnd="20dp"
         android:layout_marginTop="10dp"
-        android:onClick="stop"/>
+        android:layout_marginEnd="20dp"
+        android:onClick="stop"
+        android:text="stop"
+        android:textAllCaps="false" />
 
     <Button
         android:id="@+id/btn_destroy"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:text="destroy"
-        android:textAllCaps="false"
         android:layout_below="@id/btn_stop"
         android:layout_marginStart="20dp"
-        android:layout_marginEnd="20dp"
         android:layout_marginTop="10dp"
-        android:onClick="destroy"/>
+        android:layout_marginEnd="20dp"
+        android:onClick="destroy"
+        android:text="destroy"
+        android:textAllCaps="false" />
 
 </RelativeLayout>

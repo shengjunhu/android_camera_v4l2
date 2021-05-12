@@ -4,9 +4,7 @@
 
 #include "Common.h"
 #include "HwDecoder.h"
-#include <ctime>
 #include <string>
-#include <android/native_window.h>
 
 #define MIME_TYPE "video/mjpeg"
 #define TAG "HwDecoder"
@@ -16,16 +14,9 @@
 #define STATUS_INIT   2
 #define STATUS_RUN    3
 
-long long timeUs() {
-    struct timeval time;
-    gettimeofday(&time, NULL);
-    return (long long)time.tv_sec * 1000000 + time.tv_usec;
-}
-
 HwDecoder::HwDecoder() :
-        frameWidth(0),
-        frameHeight(0),
-        surface(NULL),
+        width(0),
+        height(0),
         mediaCodec(NULL),
         status(STATUS_CREATE){
 }
@@ -36,10 +27,10 @@ HwDecoder::~HwDecoder() {
 
 inline const unsigned int HwDecoder::onStatus() const { return status; }
 
-bool HwDecoder::updateSize(unsigned int width, unsigned int height) {
+bool HwDecoder::updateSize(unsigned int frameW, unsigned int frameH) {
     if (STATUS_RUN != onStatus()){
-        frameWidth = width;
-        frameHeight = height;
+        width = frameW;
+        height = frameH;
         status = STATUS_PARAM;
         return true;
     } else {
@@ -48,21 +39,11 @@ bool HwDecoder::updateSize(unsigned int width, unsigned int height) {
     }
 }
 
-bool HwDecoder::setPreview(ANativeWindow *window) {
-    if (STATUS_RUN != onStatus()){
-        surface = window;
-        return true;
-    } else {
-        LOGW(TAG, "setPreview failed: %d",onStatus())
-        return false;
-    }
-}
-
 bool HwDecoder::init() {
     if (STATUS_PARAM > onStatus()) {
         LOGW(TAG, "init failed: %d",onStatus())
         return false;
-    } else if (frameWidth == 0 || frameHeight == 0){
+    } else if (width == 0 || height == 0){
         LOGW(TAG, "init frameWidth or frameHeight is error")
         return false;
     } else {
@@ -77,13 +58,10 @@ bool HwDecoder::init() {
             //1.2-配置MediaCodec参数
             AMediaFormat* mediaFormat = AMediaFormat_new();
             AMediaFormat_setString(mediaFormat, "mime", MIME_TYPE);
-            AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_WIDTH, frameWidth);
-            AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_HEIGHT, frameHeight);
-            //AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT,0x7F000789);
-            //AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT,ANativeWindow_getFormat(surface));
+            AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_WIDTH, width);
+            AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_HEIGHT, height);
             if (AMEDIA_OK == AMediaCodec_configure(mediaCodec, mediaFormat, NULL, NULL, 0)) {
                 LOGD(TAG, "create success")
-                //AMediaCodec_setOutputSurface(mediaCodec, surface);
                 AMediaFormat_delete(mediaFormat);
                 status = STATUS_INIT;
                 return true;
@@ -183,8 +161,8 @@ void HwDecoder::destroy() {
     if (STATUS_RUN == onStatus()){
         stop();
     }
-    frameWidth = 0;
-    frameHeight = 0;
+    width = 0;
+    height = 0;
     status = STATUS_CREATE;
     if (mediaCodec) {
         AMediaCodec_delete(mediaCodec);

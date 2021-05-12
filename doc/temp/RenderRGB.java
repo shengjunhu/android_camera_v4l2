@@ -29,10 +29,10 @@ public final class RenderRGB extends IRender {
 //            1.0f, -1.0f,     // 1 bottom right
 //            -1.0f, 1.0f,     // 2 top left
 //            1.0f, 1.0f       // 3 top right
-            1f,1f,
-            -1f,1f,
-            1f,-1f,
-            -1f,-1f
+            -1.0f, 1.0f,
+            -1.0f, -1.0f,
+            1.0f, 1.0f,
+            1.0f, -1.0f,
     };
 
     //纹理坐标
@@ -41,10 +41,11 @@ public final class RenderRGB extends IRender {
 //            1.0f, 1.0f,       // 1 top right
 //            0.0f, 0.0f,       // 2 bottom left
 //            1.0f, 0.0f        // 3 bottom right
-            1f,0f,
-            0f,0f,
-            1f,1f,
-            0f,1f
+
+            0.0f, 0.0f,
+            0.0f, 1.0f,
+            1.0f, 0.0f,
+            1.0f, 1.0f,
     };
 
     private static final String SHADER_VERTEX =
@@ -185,6 +186,40 @@ public final class RenderRGB extends IRender {
 
 //==================================================================================================
 
+    private void drawFrame() {
+        Log.e(TAG,"drawFrame");
+        if (frameData == null) return;
+        Log.e(TAG,"drawFrame2");
+
+        frameData.limit(width * height);
+        frameData.position(0);
+
+        //3.3-使用texture_Y
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
+        //这里将之前的纹理信息设置到纹理上，注意这里使用的纹理(x值)要和对应好
+        GLES20.glUniform1i(texUniLocation[0], 0);
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height,
+                0, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, frameData);
+
+        //3.4-使用texture_UV
+        frameData.position(width * height);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[1]);
+        GLES20.glUniform1i(texUniLocation[1], 1);
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA,
+                width >> 1, height >> 1, 0, GLES20.GL_LUMINANCE_ALPHA,
+                GLES20.GL_UNSIGNED_BYTE, frameData);
+
+        //3.5-完成
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+        GLES20.glFinish();
+
+        //3.6-禁用顶点属性数组
+        GLES20.glDisableVertexAttribArray(positionHandle);
+        GLES20.glDisableVertexAttribArray(textureHandle);
+    }
+
     private void createTexture() {
         GLES20.glGenTextures(2, textures, 0);
         //绑定texture_Y
@@ -222,40 +257,6 @@ public final class RenderRGB extends IRender {
             }
         }
         return shader;
-    }
-
-    private void drawFrame() {
-        Log.e(TAG,"drawFrame");
-        if (frameData == null) return;
-        Log.e(TAG,"drawFrame2");
-
-        frameData.limit(width * height);
-        frameData.position(0);
-
-        //3.3-使用texture_Y
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
-        //这里将之前的纹理信息设置到纹理上，注意这里使用的纹理(x值)要和对应好
-        GLES20.glUniform1i(texUniLocation[0], 0);
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height,
-                0, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, frameData);
-
-        //3.4-使用texture_UV
-        frameData.position(width * height);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[1]);
-        GLES20.glUniform1i(texUniLocation[1], 1);
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA,
-                width >> 1, height >> 1, 0, GLES20.GL_LUMINANCE_ALPHA,
-                GLES20.GL_UNSIGNED_BYTE, frameData);
-
-        //3.5-完成
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-        GLES20.glFinish();
-
-        //3.6-禁用顶点属性数组
-        GLES20.glDisableVertexAttribArray(positionHandle);
-        GLES20.glDisableVertexAttribArray(textureHandle);
     }
 
 //==================================================================================================

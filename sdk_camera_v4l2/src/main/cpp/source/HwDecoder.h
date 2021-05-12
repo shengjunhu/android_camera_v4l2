@@ -10,16 +10,14 @@
 class HwDecoder {
 private:
     volatile int status;
-    unsigned int frameWidth;
-    unsigned int frameHeight;
-    ANativeWindow *surface;
+    unsigned int width;
+    unsigned int height;
     AMediaCodec* mediaCodec;
 public:
     HwDecoder();
     ~HwDecoder();
     inline const unsigned int onStatus() const;
     bool updateSize(unsigned int width, unsigned int height);
-    bool setPreview(ANativeWindow *window);
     bool init();
     bool start();
     uint8_t* process(void *in_buffer, size_t raw_size);

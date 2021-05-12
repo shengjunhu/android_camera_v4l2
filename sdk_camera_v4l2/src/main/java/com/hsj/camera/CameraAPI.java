@@ -1,9 +1,6 @@
 package com.hsj.camera;
 
 import android.util.Log;
-import android.view.Surface;
-
-import java.nio.ByteBuffer;
 
 /**
  * @Author:Hsj
@@ -29,10 +26,6 @@ public final class CameraAPI {
         System.loadLibrary("camera");
     }
 
-    public interface IFrameCallback {
-        void onFrame(ByteBuffer frame);
-    }
-
 //======================================Java API====================================================
 
     private long nativeObj;
@@ -41,7 +34,7 @@ public final class CameraAPI {
         this.nativeObj = nativeInit();
     }
 
-    public final boolean create(int productId, int vendorId) {
+    public final synchronized boolean create(int productId, int vendorId) {
         if (this.nativeObj == 0) {
             Log.e(TAG, "Can't be call after call destroy");
             return false;
@@ -74,7 +67,7 @@ public final class CameraAPI {
         }
     }
 
-    public final boolean setFrameSize(int width, int height, int pixelFormat) {
+    public final synchronized boolean setFrameSize(int width, int height, int pixelFormat) {
         if (this.nativeObj == 0) {
             Log.w(TAG, "Can't be call after call destroy");
             return false;
@@ -96,21 +89,7 @@ public final class CameraAPI {
         }
     }
 
-    public final boolean setPreview(Surface surface) {
-        if (this.nativeObj == 0) {
-            Log.w(TAG, "Can't be call after call destroy");
-            return false;
-        } else if (surface != null && surface.isValid()){
-            int status = nativePreview(this.nativeObj, surface);
-            Logger.d(TAG, "setPreview: " + status);
-            return STATUS_SUCCESS == status;
-        }else {
-            Log.w(TAG, "Surface is unavailable");
-            return false;
-        }
-    }
-
-    public final boolean start() {
+    public final synchronized boolean start() {
         if (this.nativeObj == 0) {
             Log.w(TAG, "Can't be call after call destroy");
             return false;
@@ -121,7 +100,7 @@ public final class CameraAPI {
         }
     }
 
-    public final boolean stop() {
+    public final synchronized boolean stop() {
         if (this.nativeObj == 0) {
             Log.w(TAG, "Can't be call after call destroy");
             return false;
@@ -132,7 +111,7 @@ public final class CameraAPI {
         }
     }
 
-    public final void destroy() {
+    public final synchronized void destroy() {
         if (this.nativeObj == 0) {
             Logger.w(TAG, "destroy: already destroyed");
         }else {
@@ -155,8 +134,6 @@ public final class CameraAPI {
     private native int nativeFrameSize(long nativeObj, int width, int height, int pixelFormat);
 
     private native int nativeFrameCallback(long nativeObj, IFrameCallback frameCallback);
-
-    private native int nativePreview(long nativeObj, Surface surface);
 
     private native int nativeStart(long nativeObj);
 
