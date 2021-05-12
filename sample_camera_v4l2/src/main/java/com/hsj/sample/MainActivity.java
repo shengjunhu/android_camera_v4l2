@@ -17,17 +17,25 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
+/**
+ * @Author:Hsj
+ * @Date:2021/5/10
+ * @Class:MainActivity
+ * @Desc:
+ */
 public final class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-    //RGB
+    //RGB: Usb camera productId and vendorId
     private static final int RGB_PID = 12384;
     private static final int RGB_VID = 3034;
+    //RGB: frame of width and height
     private static final int RGB_WIDTH = 1280;
     private static final int RGB_HEIGHT = 800;
-    //IR
+    //IR: Usb camera productId and vendorId
     private static final int IR_PID = 25446;
     private static final int IR_VID = 3141;
+    //IR: frame of width and height
     private static final int IR_WIDTH = 640;
     private static final int IR_HEIGHT = 400;
     //IRender
