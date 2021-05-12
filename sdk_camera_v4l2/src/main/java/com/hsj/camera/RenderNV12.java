@@ -68,7 +68,7 @@ public final class RenderNV12 implements IRender {
                     + "   v = texture2D(texUV,texCoord).a - 0.5;\n"
                     + "   r = y + 1.13983*v;\n"
                     + "   g = y - 0.39465*u - 0.58060*v;\n"
-                    + "   b = y + 2.03211*u;\n"
+                    + "   b = y + 1.53211*u;\n"
                     + "   gl_FragColor = vec4(r, g, b, 1.0);\n"
                     + "}\n";
 
@@ -267,7 +267,6 @@ public final class RenderNV12 implements IRender {
         //3.3-设置渲染的坐标
         GLES20.glUniformMatrix4fv(vMatrix, 1, false, matrix, 0);
 
-        Log.d(TAG, "renderTime1=" + (System.currentTimeMillis() - start));
         //3.4.1-使用texture_Y
         frame.limit(frameWH);
         frame.position(0);
@@ -303,7 +302,6 @@ public final class RenderNV12 implements IRender {
         //3.7-解绑：4ms
         //GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
         //GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
-        Log.d(TAG, "renderTime=" + (System.currentTimeMillis() - start));
     }
 
 }

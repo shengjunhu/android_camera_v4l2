@@ -18,14 +18,14 @@ android sample of v4l2 camera
 - 4.Support OpenGL ES rendering YUYV, NV12, NV21, DEPTH and other image formats.
 
 ### About Build
-* CMake: 3.10.2
-* Android Studio 4.0
+- CMake: 3.10.2
+- Android Studio 4.0
 
 ### About Author:
-* Author: shengjunhu
-* Date  : 2021/5/12
-* E-Mail: shengjunhu@foxmail.com
-* GitHub: https://github.com/hushengjun
+- Author: shengjunhu
+- Date  : 2021/5/12
+- E-Mail: shengjunhu@foxmail.com
+- GitHub: https://github.com/hushengjun
 
 ### About License
 ```

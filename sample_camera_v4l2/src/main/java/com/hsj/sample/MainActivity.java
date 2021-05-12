@@ -51,8 +51,8 @@ public final class MainActivity extends AppCompatActivity {
         CameraView cameraView = findViewById(R.id.preview);
         renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.NV12);
         //IR
-        CameraView cameraView2 = findViewById(R.id.preview2);
-        renderIR = cameraView2.getRender(IR_WIDTH, IR_HEIGHT, CameraView.YUYV);
+        //CameraView cameraView2 = findViewById(R.id.preview2);
+        //renderIR = cameraView2.getRender(IR_WIDTH, IR_HEIGHT, CameraView.YUYV);
     }
 
     @Override
@@ -116,7 +116,7 @@ public final class MainActivity extends AppCompatActivity {
             this.cameraRGB.start();
 
             this.cameraIR.setFrameSize(IR_WIDTH, IR_HEIGHT, CameraAPI.PIXEL_FORMAT_YUYV);
-            this.cameraIR.setFrameCallback(irCallback);
+            //this.cameraIR.setFrameCallback(irCallback);
             //this.cameraIR.setAutoExposure(false);
             //625->5ms, 312->4ms, 156->3.0ms, 78->2.5ms, 39->1.8ms, 20->1.4ms, 10->1.0ms, 5->0.6ms, 2->0.20ms, 1->0.06ms
             //this.cameraIR.setExposureLevel(156);
