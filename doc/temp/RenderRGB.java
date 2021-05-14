@@ -177,7 +177,7 @@ public final class RenderRGB extends IRender {
     public void onDrawFrame(GL10 gl) {
         //3.1-清空画布
         Log.e(TAG,"onDrawFrame-3.1");
-        GLES20.glClearColor(0f, 0f, 0f, 0f);
+        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         //3.2-绘制
         Log.e(TAG,"onDrawFrame-3.2");

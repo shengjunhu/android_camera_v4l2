@@ -56,20 +56,19 @@ public final class RenderNV12 implements IRender {
                     + "}\n";
 
     private static final String SHADER_FRAGMENT =
-            "#extension GL_OES_EGL_image_external : require\n"
-                    + "precision mediump float;\n"
+            "precision mediump float;\n"
                     + "uniform sampler2D texY;\n"
                     + "uniform sampler2D texUV;\n"
                     + "varying vec2 texCoord;\n"
                     + "void main() {\n"
-                    + "   vec3 yuv;\n"
-                    + "   yuv.x = texture2D(texY, texCoord).r + 0.1625;\n"
-                    + "   yuv.y = texture2D(texUV,texCoord).r - 0.5;\n"
-                    + "   yuv.z = texture2D(texUV,texCoord).a - 0.5;\n"
-                    + "   vec3 rgb = mat3(1.0, 1.0, 1.0,\n"
-                    + "                   0.0, -0.39465, 1.53211,\n"
-                    + "                   1.13983, -0.58060, 0.0) * yuv;\n"
-                    + "   gl_FragColor = vec4(rgb, 1.0);\n"
+                    + "   float r,g,b,y,u,v;\n"
+                    + "   y = texture2D(texY, texCoord).r;\n"
+                    + "   u = texture2D(texUV,texCoord).r - 0.5;\n"
+                    + "   v = texture2D(texUV,texCoord).a - 0.5;\n"
+                    + "   r = y + 1.13983*v;\n"
+                    + "   g = y - 0.39465*u - 0.58060*v;\n"
+                    + "   b = y + 1.53211*u;\n"
+                    + "   gl_FragColor = vec4(r, g, b, 1.0);\n"
                     + "}\n";
 
     private int program;
@@ -86,8 +85,12 @@ public final class RenderNV12 implements IRender {
     private int[] textures = new int[2];
     //加载Y和UV
     private int[] texUniLocation = new int[2];
+    //GLSurfaceView
+    private GLSurfaceView glSurfaceView;
     //Frame宽高
     private int frameW, frameH, frameWH;
+    //Frame
+    private Buffer frame;
 
     public RenderNV12(GLSurfaceView glSurfaceView, int frameW, int frameH) {
         this.glSurfaceView = glSurfaceView;
@@ -110,12 +113,7 @@ public final class RenderNV12 implements IRender {
 
 //==================================================================================================
 
-    //Frame
-    private Buffer frame;
-    //是否渲染
     private volatile boolean isRender;
-    //GLSurfaceView
-    private GLSurfaceView glSurfaceView;
 
     @Override
     public synchronized void release() {
@@ -220,10 +218,10 @@ public final class RenderNV12 implements IRender {
         int fragmentId = loadShader(GLES20.GL_FRAGMENT_SHADER, SHADER_FRAGMENT);
         //1.3-创建program
         program = GLES20.glCreateProgram();
-        if (program == GLES20.GL_NONE || vertexId == GLES20.GL_NONE || fragmentId == GLES20.GL_NONE) {
-            Log.e(TAG, "GL: program=" + program);
-            Log.e(TAG, "GL: vertex=" + vertexId);
-            Log.e(TAG, "GL: fragment=" + fragmentId);
+        if (program == GLES20.GL_FALSE || vertexId == GLES20.GL_FALSE || fragmentId == GLES20.GL_FALSE) {
+            Log.w(TAG, "onSurfaceCreated: program=" + program);
+            Log.w(TAG, "onSurfaceCreated: vertex=" + vertexId);
+            Log.w(TAG, "onSurfaceCreated: fragment=" + fragmentId);
         } else {
             //1.4-添加program和shader
             GLES20.glAttachShader(program, vertexId);
@@ -244,11 +242,6 @@ public final class RenderNV12 implements IRender {
     }
 
     private void createTexture() {
-        GLES20.glDisable(GLES20.GL_DITHER);
-        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-        GLES20.glDisable(GLES20.GL_STENCIL_TEST);
-        GLES20.glEnable(GLES20.GL_TEXTURE_2D);
-        //生成纹理
         GLES20.glGenTextures(2, textures, 0);
         //绑定texture_Y
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
@@ -268,7 +261,8 @@ public final class RenderNV12 implements IRender {
         long start = System.currentTimeMillis();
         //3.1-清空画布
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
         if (program == 0 || frame == null) {
             //防止闪屏
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);

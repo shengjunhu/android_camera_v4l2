@@ -140,6 +140,15 @@ void Camera::loopFrame(JNIEnv *env, Camera *camera) {
             //MJPG->NV12
             uint8_t* out = camera->hwDecoder->process(camera->buffers[buffer.index].start, buffer.bytesused);
             //LOGD(TAG, "mjpeg2yuv: %lld", timeMs() - time1)
+            //SAVE->NV12
+            /*FILE *fp = fopen("/sdcard/nv12_1280x800.yuv", "wb");
+            if (fp) {
+               fwrite(out, 1,  camera->frameWidth*camera->frameHeight*3/2,fp);
+               fclose(fp);
+               LOGD(TAG,"Capture one frame saved in /sdcard/nv12_1280x800.yuv");
+            } else {
+               LOGE(TAG,"Loop frame failed: ir")
+            }*/
             //NV12->Java
             sendFrame(env,out);
         }
@@ -154,8 +163,8 @@ void Camera::sendFrame(JNIEnv *env, uint8_t *data){
     if (LIKELY(data) && LIKELY(frameCallback_onFrame)){
         jobject frame = env->NewDirectByteBuffer(data, pixelBytes);
         env->CallVoidMethod(frameCallback, frameCallback_onFrame, frame);
-        env->ExceptionClear();
         env->DeleteLocalRef(frame);
+        env->ExceptionClear();
     }
 }
 

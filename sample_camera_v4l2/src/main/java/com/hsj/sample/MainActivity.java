@@ -38,10 +38,10 @@ public final class MainActivity extends AppCompatActivity {
     //IR: frame of width and height
     private static final int IR_WIDTH = 640;
     private static final int IR_HEIGHT = 400;
-    //IRender
-    private IRender renderRGB, renderIR;
     //CameraAPI
     private CameraAPI cameraRGB, cameraIR;
+    //IRender
+    private IRender renderRGB;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,9 +50,6 @@ public final class MainActivity extends AppCompatActivity {
         //RGB
         CameraView cameraView = findViewById(R.id.preview);
         renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.NV12);
-        //IR
-        //CameraView cameraView2 = findViewById(R.id.preview2);
-        //renderIR = cameraView2.getRender(IR_WIDTH, IR_HEIGHT, CameraView.YUYV);
     }
 
     @Override
@@ -61,18 +58,12 @@ public final class MainActivity extends AppCompatActivity {
         if (renderRGB != null) {
             renderRGB.onRender(true);
         }
-        if (renderIR != null) {
-            renderIR.onRender(true);
-        }
     }
 
     @Override
     protected void onPause() {
         if (renderRGB != null) {
             renderRGB.onRender(false);
-        }
-        if (renderIR != null) {
-            renderIR.onRender(false);
         }
         super.onPause();
     }
@@ -82,9 +73,6 @@ public final class MainActivity extends AppCompatActivity {
         super.onStop();
         if (renderRGB!=null){
             renderRGB.release();
-        }
-        if (renderIR!=null){
-            renderIR.release();
         }
     }
 
@@ -148,7 +136,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private final IFrameCallback rgbCallback = frame -> renderRGB.updatePreview(frame);
 
-    private final IFrameCallback irCallback = frame -> renderIR.updatePreview(frame);
+    private final IFrameCallback irCallback = frame -> {};
 
 //==================================================================================================
 
