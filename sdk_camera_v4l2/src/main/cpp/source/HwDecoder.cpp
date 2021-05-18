@@ -18,7 +18,7 @@ HwDecoder::HwDecoder() :
         width(0),
         height(0),
         mediaCodec(NULL),
-        status(STATUS_CREATE){
+        status(STATUS_CREATE) {
 }
 
 HwDecoder::~HwDecoder() {
@@ -28,35 +28,33 @@ HwDecoder::~HwDecoder() {
 inline const unsigned int HwDecoder::onStatus() const { return status; }
 
 bool HwDecoder::updateSize(unsigned int frameW, unsigned int frameH) {
-    if (STATUS_RUN != onStatus()){
+    if (STATUS_RUN != onStatus()) {
         width = frameW;
         height = frameH;
         status = STATUS_PARAM;
         return true;
     } else {
-        LOGW(TAG, "updateSize failed: %d",onStatus())
+        LOGE(TAG, "updateSize failed: %d", onStatus())
         return false;
     }
 }
 
 bool HwDecoder::init() {
+    bool ret = false;
     if (STATUS_PARAM > onStatus()) {
-        LOGW(TAG, "init failed: %d",onStatus())
-        return false;
-    } else if (width == 0 || height == 0){
-        LOGW(TAG, "init frameWidth or frameHeight is error")
-        return false;
+        LOGE(TAG, "init failed: %d", onStatus())
+    } else if (width == 0 || height == 0) {
+        LOGE(TAG, "init frameWidth or frameHeight is error")
     } else {
         //1.1-创建MediaCodec
-        if(mediaCodec == NULL){
+        if (mediaCodec == NULL) {
             mediaCodec = AMediaCodec_createDecoderByType(MIME_TYPE);
         }
         if (mediaCodec == NULL) {
             LOGE(TAG, "Not support for %s", MIME_TYPE)
-            return false;
         } else {
             //1.2-配置MediaCodec参数
-            AMediaFormat* mediaFormat = AMediaFormat_new();
+            AMediaFormat *mediaFormat = AMediaFormat_new();
             AMediaFormat_setString(mediaFormat, "mime", MIME_TYPE);
             AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_WIDTH, width);
             AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_HEIGHT, height);
@@ -64,42 +62,42 @@ bool HwDecoder::init() {
                 LOGD(TAG, "create success")
                 AMediaFormat_delete(mediaFormat);
                 status = STATUS_INIT;
-                return true;
+                ret = true;
             } else {
                 LOGE(TAG, "configuration failure")
                 AMediaFormat_delete(mediaFormat);
                 AMediaCodec_delete(mediaCodec);
                 mediaCodec = NULL;
-                return false;
             }
         }
     }
+    return ret;
 }
 
 bool HwDecoder::start() {
     //2-启动MediaCodec
-    if (STATUS_INIT == onStatus()){
+    bool ret = false;
+    if (STATUS_INIT == onStatus()) {
         if (AMEDIA_OK == AMediaCodec_start(mediaCodec)) {
             LOGD(TAG, "start success")
             status = STATUS_RUN;
-            return true;
+            ret = true;
         } else {
             LOGE(TAG, "start failure")
-            return false;
         }
     } else {
         LOGW(TAG, "Please call init first after call start")
-        return false;
     }
+    return ret;
 }
 
-uint8_t* HwDecoder::process(void *raw_buffer, size_t raw_size) {
+uint8_t *HwDecoder::process(void *raw_buffer, size_t raw_size) {
     uint8_t *out_buffer = NULL;
     if (STATUS_RUN != onStatus()) return out_buffer;
     //3.1-获取可用的输入缓冲区的索引
     ssize_t in_buffer_id = AMediaCodec_dequeueInputBuffer(mediaCodec, TIME_OUT_US);
-    if (in_buffer_id < 0){
-        LOGW(TAG,"No available input buffer")
+    if (in_buffer_id < 0) {
+        LOGW(TAG, "No available input buffer")
         //AMediaCodec_flush(mediaCodec);
     } else {
         //3.2-获取可用的输入缓冲区
@@ -111,11 +109,11 @@ uint8_t* HwDecoder::process(void *raw_buffer, size_t raw_size) {
         //3.4-获取已成功编解码的输出缓冲区的索引
         AMediaCodecBufferInfo info;
         ssize_t out_buffer_id = AMediaCodec_dequeueOutputBuffer(mediaCodec, &info, TIME_OUT_US);
-        if (out_buffer_id >= 0){
+        if (out_buffer_id >= 0) {
             //3.5-获取输出缓冲区
             out_buffer = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, NULL);
             //3.6-释放输出缓冲区
-            AMediaCodec_releaseOutputBuffer(mediaCodec, out_buffer_id, false/*(surface != NULL && info.size != 0)*/);
+            AMediaCodec_releaseOutputBuffer(mediaCodec, out_buffer_id, false);
         } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
             LOGW(TAG, "Output buffers changed")
         } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -127,7 +125,7 @@ uint8_t* HwDecoder::process(void *raw_buffer, size_t raw_size) {
                 AMediaFormat_getInt32(format, "color-format", &_color);
                 AMediaFormat_delete(format);
             }
-            LOGW(TAG,"w=%d, h=%d, color=%d", _width, _height, _color)
+            LOGW(TAG, "w=%d, h=%d, color=%d", _width, _height, _color)
         } else if (out_buffer_id == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             LOGW(TAG, "No output buffer right now")
         } else {
@@ -140,31 +138,30 @@ uint8_t* HwDecoder::process(void *raw_buffer, size_t raw_size) {
 
 bool HwDecoder::stop() {
     //4-stop decode
-    if (STATUS_RUN == onStatus()){
+    bool ret = false;
+    if (STATUS_RUN == onStatus()) {
         status = STATUS_INIT;
-        //AMediaCodec_flush(mediaCodec);
         if (AMEDIA_OK == AMediaCodec_stop(mediaCodec)) {
             LOGD(TAG, "stop success")
-            return true;
+            ret = true;
         } else {
             LOGE(TAG, "stop failure")
-            return false;
         }
     } else {
         LOGW(TAG, "Please call start first after call stop")
-        return false;
     }
+    return ret;
 }
 
 void HwDecoder::destroy() {
     //5-destroy
-    if (STATUS_RUN == onStatus()){
+    if (STATUS_RUN == onStatus()) {
         stop();
     }
     width = 0;
     height = 0;
     status = STATUS_CREATE;
-    if (mediaCodec) {
+    if (mediaCodec != NULL) {
         AMediaCodec_delete(mediaCodec);
         mediaCodec = NULL;
     }

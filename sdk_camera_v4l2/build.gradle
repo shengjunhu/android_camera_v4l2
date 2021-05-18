@@ -13,7 +13,7 @@ android {
         externalNativeBuild {
             cmake {
                 abiFilters "armeabi-v7a", "arm64-v8a"
-                cppFlags "-Wunused -frtti -fexceptions -mfpu=neon"
+                cppFlags "-Wunused -frtti -fexceptions -mfpu=neon -fPIE"
                 arguments "-DCMAKE_BUILD_TYPE=Release"
                 arguments "-DANDROID_PLATFORM=android-21"
             }

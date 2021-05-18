@@ -3,6 +3,8 @@ package com.hsj.camera;
 import android.content.Context;
 import android.opengl.GLSurfaceView;
 import android.util.AttributeSet;
+import android.util.Log;
+import android.view.WindowManager;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -29,6 +31,7 @@ public final class CameraView extends GLSurfaceView implements GLSurfaceView.Ren
         super(context, attrs);
         setZOrderOnTop(true);
         setZOrderMediaOverlay(true);
+        setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);
     }
 
     public IRender getRender(int frameW, int frameH, int frameFormat) {

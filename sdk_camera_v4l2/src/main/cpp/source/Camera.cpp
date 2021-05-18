@@ -137,9 +137,11 @@ void Camera::loopFrame(JNIEnv *env, Camera *camera) {
         } else {
             //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
             //time1 = timeMs();
+
             //MJPG->NV12
             uint8_t* out = camera->hwDecoder->process(camera->buffers[buffer.index].start, buffer.bytesused);
             //LOGD(TAG, "mjpeg2yuv: %lld", timeMs() - time1)
+
             //SAVE->NV12
             /*FILE *fp = fopen("/sdcard/nv12_1280x800.yuv", "wb");
             if (fp) {
@@ -149,6 +151,7 @@ void Camera::loopFrame(JNIEnv *env, Camera *camera) {
             } else {
                LOGE(TAG,"Loop frame failed: ir")
             }*/
+
             //NV12->Java
             sendFrame(env,out);
         }

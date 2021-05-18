@@ -10,7 +10,6 @@ import java.nio.Buffer;
  * @Desc:
  */
 public interface IRender extends GLSurfaceView.Renderer {
-     void release();
      void onRender(boolean isResume);
      void updatePreview(Buffer frame);
 }

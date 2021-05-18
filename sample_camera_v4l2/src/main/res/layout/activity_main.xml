@@ -26,7 +26,6 @@
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
             android:layout_weight="1"
-            android:onClick="create"
             android:text="create"
             android:textAllCaps="false" />
 
@@ -36,7 +35,6 @@
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
             android:layout_weight="1"
-            android:onClick="start"
             android:text="start"
             android:textAllCaps="false" />
 
@@ -46,7 +44,6 @@
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
             android:layout_weight="1"
-            android:onClick="stop"
             android:text="stop"
             android:textAllCaps="false" />
 
@@ -57,7 +54,6 @@
             android:layout_marginStart="2dp"
             android:layout_marginEnd="2dp"
             android:layout_weight="1"
-            android:onClick="destroy"
             android:text="destroy"
             android:textAllCaps="false" />
 

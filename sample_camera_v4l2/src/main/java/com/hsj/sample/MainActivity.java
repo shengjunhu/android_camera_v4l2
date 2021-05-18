@@ -1,21 +1,15 @@
 package com.hsj.sample;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
-
 import com.hsj.camera.CameraAPI;
 import com.hsj.camera.CameraView;
 import com.hsj.camera.IFrameCallback;
 import com.hsj.camera.IRender;
-
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 
 /**
  * @Author:Hsj
@@ -47,6 +41,10 @@ public final class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        findViewById(R.id.btn_create).setOnClickListener(v->create());
+        findViewById(R.id.btn_start).setOnClickListener(v->start());
+        findViewById(R.id.btn_stop).setOnClickListener(v->stop());
+        findViewById(R.id.btn_destroy).setOnClickListener(v->destroy());
         //RGB
         CameraView cameraView = findViewById(R.id.preview);
         renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.NV12);
@@ -71,38 +69,43 @@ public final class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        if (renderRGB!=null){
-            renderRGB.release();
-        }
+        stop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        destroy();
     }
 
 //==================================================================================================
 
-    public void create(View view) {
+    public void create() {
         if (this.cameraRGB == null) {
             this.cameraRGB = new CameraAPI();
             boolean result = this.cameraRGB.create(RGB_PID, RGB_VID);
-            if (!result) {
-                showToast("camera open failed: rgb");
-            }
+            if (!result) showToast("camera open failed: rgb");
+        }
 
+        if (this.cameraIR == null) {
             this.cameraIR = new CameraAPI();
-            result = this.cameraIR.create(IR_PID, IR_VID);
-            if (!result) {
-                showToast("camera open failed: ir");
-            }
+            boolean result = this.cameraIR.create(IR_PID, IR_VID);
+            if (!result) showToast("camera open failed: ir");
         }
     }
 
-    public void start(View view) {
+    public void start() {
         if (this.cameraRGB == null) {
-            showToast("please open camera");
+            showToast("please open camera rgb");
         } else {
             this.cameraRGB.setFrameSize(RGB_WIDTH, RGB_HEIGHT, CameraAPI.PIXEL_FORMAT_MJPEG);
             this.cameraRGB.setFrameCallback(rgbCallback);
-            this.cameraRGB.setAutoExposure(true);
             this.cameraRGB.start();
+        }
 
+        if (this.cameraIR == null) {
+            showToast("please open camera ir");
+        } else {
             this.cameraIR.setFrameSize(IR_WIDTH, IR_HEIGHT, CameraAPI.PIXEL_FORMAT_YUYV);
             //this.cameraIR.setFrameCallback(irCallback);
             //this.cameraIR.setAutoExposure(false);
@@ -112,32 +115,37 @@ public final class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void stop(View view) {
+    public void stop() {
         if (this.cameraRGB != null) {
             this.cameraRGB.stop();
+        }
+        if (this.cameraIR != null) {
             this.cameraIR.stop();
         }
     }
 
-    public void destroy(View view) {
+    public void destroy() {
         if (this.cameraRGB != null) {
             this.cameraRGB.destroy();
-            this.cameraIR.destroy();
-            this.cameraRGB = null;
-            this.cameraIR = null;
         }
-    }
-
-    private void showToast(String msg) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        if (this.cameraIR != null) {
+            this.cameraIR.destroy();
+        }
+        this.cameraRGB = null;
+        this.cameraIR = null;
     }
 
 //==================================================================================================
 
     private final IFrameCallback rgbCallback = frame -> renderRGB.updatePreview(frame);
 
-    private final IFrameCallback irCallback = frame -> {};
+    private final IFrameCallback irCallback = frame -> {
+    };
 
 //==================================================================================================
+
+    private void showToast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
 
 }

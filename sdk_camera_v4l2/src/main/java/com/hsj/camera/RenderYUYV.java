@@ -45,8 +45,8 @@ public final class RenderYUYV implements IRender {
                     + "attribute vec2 vTexCoord;\n"
                     + "varying vec2 texCoord;\n"
                     + "void main() {\n"
-                    + "   gl_Position = vMatrix*vPosition;\n"
                     + "   texCoord = vTexCoord;\n"
+                    + "   gl_Position = vMatrix*vPosition;\n"
                     + "}\n";
 
     private static final String SHADER_FRAGMENT =
@@ -55,9 +55,8 @@ public final class RenderYUYV implements IRender {
                     + "uniform sampler2D texYUYV;\n"
                     + "varying vec2 texCoord;\n"
                     + "void main() {\n"
-                    + "   float y;\n"
-                    + "   y = texture2D(texYUYV, texCoord).x;\n"
-                    + "   gl_FragColor = vec4(y, y, y, 0.0);\n"
+                    + "   float y = texture2D(texYUYV, texCoord).x;\n"
+                    + "   gl_FragColor = vec4(y, y, y, 1.0);\n"
                     + "}\n";
 
     private int program;
@@ -105,23 +104,14 @@ public final class RenderYUYV implements IRender {
     private GLSurfaceView glSurfaceView;
 
     @Override
-    public synchronized void release() {
-        if (program != 0) {
-            GLES20.glDeleteProgram(program);
-            GLES20.glReleaseShaderCompiler();
-            frame = null;
-            program = 0;
-        }
-    }
-
-    @Override
     public synchronized void onRender(boolean isResume) {
         if (isResume) {
             this.glSurfaceView.onResume();
+            this.isRender = true;
         } else {
+            this.isRender = false;
             this.glSurfaceView.onPause();
         }
-        this.isRender = isResume;
     }
 
     @Override
@@ -272,8 +262,8 @@ public final class RenderYUYV implements IRender {
         GLES20.glDisableVertexAttribArray(vPosition);
         GLES20.glDisableVertexAttribArray(vTexCoord);
         //3.7-解绑：4ms
-        //GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        //GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, GLES20.GL_NONE);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, GLES20.GL_NONE);
     }
 
 }
