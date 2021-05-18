@@ -1,5 +1,7 @@
 package com.hsj.camera;
 
+import android.graphics.Color;
+import android.opengl.GLES10;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
@@ -16,12 +18,12 @@ import javax.microedition.khronos.opengles.GL10;
 /**
  * @Author:Hsj
  * @Date:2021/5/10
- * @Class:RenderNV12
+ * @Class:RenderDEPTH
  * @Desc:
  */
-public final class RenderNV12 implements IRender {
+public final class RenderDEPTH implements IRender {
 
-    private static final String TAG = "RenderNV12";
+    private static final String TAG = "RenderDEPTH";
 
     /*
      * 顶点坐标
@@ -54,22 +56,19 @@ public final class RenderNV12 implements IRender {
     private static final String SHADER_FRAGMENT =
             "#extension GL_OES_EGL_image_external : require\n"
                     + "precision mediump float;\n"
-                    + "uniform sampler2D texY;\n"
-                    + "uniform sampler2D texUV;\n"
+                    + "uniform sampler2D texDepth;\n"
                     + "varying vec2 texCoord;\n"
-                    + "const mat3 convert = mat3(1.0,1.0,1.0,0.0,-0.39465,1.53211,1.13983,-0.58060,0.0);\n"
                     + "void main() {\n"
-                    + "   vec3 yuv;\n"
-                    + "   yuv.x = texture2D(texY, texCoord).r + 0.0625;\n"
-                    + "   yuv.y = texture2D(texUV,texCoord).r - 0.5;\n"
-                    + "   yuv.z = texture2D(texUV,texCoord).a - 0.5;\n"
-                    + "   gl_FragColor = vec4(convert * yuv, 1.0);\n"
+                    + "   float depth = texture2D(texDepth, texCoord).r;\n"
+                    + "   gl_FragColor = vec4(depth, depth, depth, 1.0);\n"
                     + "}\n";
 
     private int program;
     private int vMatrix;
     private int vPosition;
     private int vTexCoord;
+    //加载YUYV
+    private int texDepth;
     //顶点缓冲坐标
     private FloatBuffer vertexBuffer;
     //纹理缓冲坐标
@@ -77,17 +76,14 @@ public final class RenderNV12 implements IRender {
     //matrix
     private float[] matrix = new float[16];
     //渲染Y和UV
-    private int[] textures = new int[2];
-    //加载Y和UV
-    private int[] texUniLocation = new int[2];
+    private int[] textures = new int[1];
     //Frame宽高
-    private int frameW, frameH, frameWH;
+    private int frameW, frameH;
 
-    public RenderNV12(GLSurfaceView glSurfaceView, int frameW, int frameH) {
+    public RenderDEPTH(GLSurfaceView glSurfaceView, int frameW, int frameH) {
         this.glSurfaceView = glSurfaceView;
         this.frameW = frameW;
         this.frameH = frameH;
-        this.frameWH = frameW * frameH;
         //创建顶点坐标
         ByteBuffer bb1 = ByteBuffer.allocateDirect(32);
         bb1.order(ByteOrder.nativeOrder());
@@ -140,14 +136,14 @@ public final class RenderNV12 implements IRender {
 
     @Override
     public void onSurfaceChanged(GL10 gl, int width, int height) {
-        //2.1-重置坐标
-        GLES20.glViewport(0, 0, width, height);
-        //2.2-update view port
+        //2.1-update view port
         setShowMatrix(matrix, frameH, frameW, width, height);
-        //2.3-x轴做镜像
+        //2.2-x轴做镜像
         Matrix.scaleM(matrix, 0, -1f, 1f, 1f);
-        //2.4-读取到数据是后置旋转270
+        //2.3-读取到数据是后置旋转270
         Matrix.rotateM(matrix, 0, 270f, 0f, 0f, 1f);
+        //2.4-重置坐标
+        GLES20.glViewport(0, 0, width, height);
     }
 
     @Override
@@ -184,7 +180,7 @@ public final class RenderNV12 implements IRender {
             if (compiled[0] == GLES20.GL_FALSE) {
                 Log.e(TAG, "GLES20 Error: " + GLES20.glGetShaderInfoLog(shader));
                 GLES20.glDeleteShader(shader);
-                shader = GLES20.GL_FALSE;
+                shader = 0;
             }
         }
         return shader;
@@ -219,26 +215,25 @@ public final class RenderNV12 implements IRender {
             GLES20.glDeleteShader(vertexId);
             GLES20.glDeleteShader(fragmentId);
         }
-        //1.7-获取属性值
+        //1.6-获取属性值
         vMatrix = GLES20.glGetUniformLocation(program, "vMatrix");
         vPosition = GLES20.glGetAttribLocation(program, "vPosition");
         vTexCoord = GLES20.glGetAttribLocation(program, "vTexCoord");
-        //1.6.2-获取shader里y和uv对应的纹理uniform变量的地址,这个在后面会被设置到Texture上
-        texUniLocation[0] = GLES20.glGetUniformLocation(program, "texY");
-        texUniLocation[1] = GLES20.glGetUniformLocation(program, "texUV");
+        //1.6.2-获取shader里depth对应的纹理uniform变量的地址,这个在后面会被设置到Texture上
+        texDepth = GLES20.glGetUniformLocation(program, "texDepth");
     }
 
     private void createTexture() {
-        //生成纹理
-        GLES20.glGenTextures(2, textures, 0);
-        //绑定texture_Y
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        //设置白色
+        GLES10.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        //启用GL_TEXTURE_2D
+        GLES20.glEnable(GLES20.GL_TEXTURE_2D);
+        //生成texDepth
+        GLES20.glGenTextures(1, textures, 0);
+        //绑定texDepth
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-        //绑定texture_UV
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[1]);
         GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
         GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
         GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
@@ -246,37 +241,22 @@ public final class RenderNV12 implements IRender {
     }
 
     private synchronized void renderFrame() {
-        if (program == 0 || frame == null) return;
-        long start = System.currentTimeMillis();
         //3.1-清空画布
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+        if (program == 0 || frame == null) return;
         //3.2-使用program
         GLES20.glUseProgram(program);
         //3.3-设置渲染的坐标
         GLES20.glUniformMatrix4fv(vMatrix, 1, false, matrix, 0);
 
-        //3.4.1-绑定texY
-        frame.limit(frameWH);
-        frame.position(0);
+        //3.4.1-绑定texDepth
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
-        //3.4.2-使用texY
-        long start2 = System.currentTimeMillis();
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE,
-                frameW, frameH, 0, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, frame);
-        GLES20.glUniform1i(texUniLocation[0], 0);
-        Log.d(TAG, "renderTime2=" + (System.currentTimeMillis() - start2));
-
-        //3.4.3-绑定texUV
-        frame.position(frameWH);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[1]);
-        //3.4.4-使用texUV
+        //3.4.2-使用texDepth
         GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA,
-                frameW >> 1, frameH >> 1, 0, GLES20.GL_LUMINANCE_ALPHA,
-                GLES20.GL_UNSIGNED_BYTE, frame);
-        GLES20.glUniform1i(texUniLocation[1], 1);
+                frameW, frameH, 0, GLES20.GL_LUMINANCE_ALPHA, GLES20.GL_UNSIGNED_BYTE, frame);
+        GLES20.glUniform1i(texDepth, 0);
 
         //3.5.1-设置渲染的坐标
         GLES20.glEnableVertexAttribArray(vPosition);
@@ -288,12 +268,12 @@ public final class RenderNV12 implements IRender {
 
         //3.6-禁用顶点属性数组
         frame = null;
+        GLES20.glFinish();
         GLES20.glDisableVertexAttribArray(vPosition);
         GLES20.glDisableVertexAttribArray(vTexCoord);
         //3.7-解绑：4ms
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, GLES20.GL_NONE);
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, GLES20.GL_NONE);
-        Log.d(TAG, "renderTime=" + (System.currentTimeMillis() - start));
     }
 
 }
