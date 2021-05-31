@@ -9,7 +9,7 @@
 
 typedef enum DecodeType {
     DECODE_HW = 0,
-    DECODE_SOFT = 1,
+    DECODE_SW = 1,
 } decodeType;
 
 class DecodeCreator {

@@ -50,9 +50,9 @@ bool DecoderHw::start() {
 }
 
 uint8_t *DecoderHw::convertRGB(uint8_t *nv12) {
-    if (nv12 != NULL) {
-        libyuv::NV12ToRAW(nv12, width,nv12 + frameWH,width,
-                outBuffer, width * 3,width, height);
+    if (LIKELY(nv12)) {
+        libyuv::NV12ToRAW(nv12, width,nv12 + frameWH, width,
+                outBuffer, width * 3, width, height);
         return outBuffer;
     } else {
         return NULL;

@@ -108,22 +108,21 @@ void *Camera::loopThread(void *args) {
     pthread_exit(NULL);
 }
 
-long long time0 = 0;
-long long time1 = 0;
+uint64_t time0 = 0;
+uint64_t time1 = 0;
 
 void Camera::loopFrame(JNIEnv *env, Camera *camera) {
-    const int fd_count = camera->fd + 1;
+    fd_set fds;
+    struct timeval tv;
     struct v4l2_buffer buffer;
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buffer.memory = V4L2_MEMORY_MMAP;
     while (STATUS_START == camera->getStatus()) {
-        fd_set fds;
         FD_ZERO (&fds);
         FD_SET (camera->fd, &fds);
-        struct timeval tv;
         tv.tv_sec = 2000;
         tv.tv_usec = 0;
-        if (0 >= select(fd_count, &fds, NULL, NULL, &tv)) {
+        if (0 >= select(camera->fd + 1, &fds, NULL, NULL, &tv)) {
             LOGW(TAG, "Loop frame failed: %s", strerror(errno))
             continue;
         } else if (0 > ioctl(camera->fd, VIDIOC_DQBUF, &buffer)) {
@@ -295,8 +294,8 @@ ActionInfo Camera::setFrameSize(int width, int height, int pixel_format) {
                 pixelBytes = width * height * 3;
                 outBuffer = (uint8_t *) calloc(1, pixelBytes);
                 if (decoder == nullptr) {decoder = new DecodeCreator();}
-                if (!decoder->createType(DECODE_HW , width, height)){
-                    decoder->createType(DECODE_SOFT, width, height);
+                if (!decoder->createType(DECODE_SW, width, height)){
+                    decoder->createType(DECODE_HW, width, height);
                 }
             }
         }

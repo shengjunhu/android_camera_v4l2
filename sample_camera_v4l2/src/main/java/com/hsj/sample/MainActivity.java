@@ -2,7 +2,9 @@ package com.hsj.sample;
 
 import android.os.Bundle;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.hsj.camera.CameraAPI;
 import com.hsj.camera.CameraView;
 import com.hsj.camera.IFrameCallback;

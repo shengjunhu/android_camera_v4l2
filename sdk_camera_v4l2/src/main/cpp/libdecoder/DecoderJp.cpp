@@ -30,7 +30,7 @@ uint8_t *DecoderJp::convert(void *raw_buffer, unsigned int raw_size) {
     auto *raw = (unsigned char *) raw_buffer;
     //3-get raw_buffer info
     tjDecompressHeader3(handle, raw, raw_size, &_width, &_height, &_subSample, &_colorSpace);
-    //4-decompress
+    //4-decompress: 22ms
     tjDecompress2(handle, raw, raw_size, outBuffer,_width, 0, _height, TJPF_RGB, _flags);
     //5-tjInitTransform: rotation or flip
     //6-return

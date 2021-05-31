@@ -7,16 +7,16 @@
 
 static JavaVM *jvm;
 
-long long timeMs() {
+uint64_t timeMs() {
     struct timeval time;
     gettimeofday(&time, NULL);
-    return (long long) time.tv_sec * 1000 + time.tv_usec / 1000;
+    return (uint64_t) time.tv_sec * 1000 + time.tv_usec / 1000;
 }
 
-long long timeUs() {
+uint64_t timeUs() {
     struct timeval time;
     gettimeofday(&time, NULL);
-    return (long long) time.tv_sec * 1000000 + time.tv_usec;
+    return (uint64_t) time.tv_sec * 1000000 + time.tv_usec;
 }
 
 void setVM(JavaVM *vm) {

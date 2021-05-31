@@ -33,7 +33,7 @@ aux_source_directory(${DIR_DECODER} DIR_SRC2)
 list(APPEND DIR_SRC ${DIR_SRC2})
 add_library(${MODULE_MAIN} SHARED ${DIR_SRC})
 
-# find log
+# find system support library
 find_library(log-lib log)
 
 # target link libraries

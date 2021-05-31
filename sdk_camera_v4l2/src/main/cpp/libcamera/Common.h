@@ -46,7 +46,7 @@
 void setVM(JavaVM *);
 JavaVM *getVM();
 JNIEnv *getEnv();
-long long timeMs();
-long long timeUs();
+uint64_t timeMs();
+uint64_t timeUs();
 
 #endif //ANDROID_CAMERA_V4L2_COMMON_H
