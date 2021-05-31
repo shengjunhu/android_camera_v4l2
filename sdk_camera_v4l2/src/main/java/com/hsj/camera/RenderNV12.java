@@ -1,6 +1,7 @@
 package com.hsj.camera;
 
-import android.opengl.GLES20;
+import android.media.MediaCodec;
+import android.opengl.GLES31;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.Log;
@@ -42,52 +43,63 @@ public final class RenderNV12 implements IRender {
     private static final float TEXTURE_BUFFER[] = {0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
 
     private static final String SHADER_VERTEX =
-            "attribute vec4 vPosition;\n"
-                    + "uniform mat4 vMatrix;\n"
-                    + "attribute vec2 vTexCoord;\n"
-                    + "varying vec2 texCoord;\n"
-                    + "void main() {\n"
-                    + "   texCoord = vTexCoord;\n"
-                    + "   gl_Position = vMatrix*vPosition;\n"
-                    + "}\n";
+            "#version 310 es\n" +
+                    "uniform mat4 vMatrix;\n" +
+                    "layout(location = 0) in vec4 vPosition;\n" +
+                    "layout(location = 1) in vec2 vTexCoord;\n" +
+                    "out vec2 texCoord;\n" +
+                    "void main() {\n" +
+                    "   texCoord = vTexCoord;\n" +
+                    "   gl_Position = vMatrix*vPosition;\n" +
+                    "}";
 
     private static final String SHADER_FRAGMENT =
-            "#extension GL_OES_EGL_image_external : require\n"
-                    + "precision mediump float;\n"
-                    + "uniform sampler2D texY;\n"
-                    + "uniform sampler2D texUV;\n"
-                    + "varying vec2 texCoord;\n"
-                    + "const mat3 convert = mat3(1.0,1.0,1.0,0.0,-0.39465,1.53211,1.13983,-0.58060,0.0);\n"
-                    + "void main() {\n"
-                    + "   vec3 yuv;\n"
-                    + "   yuv.x = texture2D(texY, texCoord).r + 0.0625;\n"
-                    + "   yuv.y = texture2D(texUV,texCoord).r - 0.5;\n"
-                    + "   yuv.z = texture2D(texUV,texCoord).a - 0.5;\n"
-                    + "   gl_FragColor = vec4(convert * yuv, 1.0);\n"
-                    + "}\n";
+            "#version 310 es\n" +
+                    "precision mediump float;\n" +
+                    "precision mediump sampler2D;\n" +
+                    "const mat3 convert = mat3(1.0,1.0,1.0,0.0,-0.39465,1.53211,1.13983,-0.58060,0.0);\n" +
+                    "in vec2 texCoord;\n" +
+                    "uniform sampler2D texY;\n" +
+                    "uniform sampler2D texUV;\n" +
+                    "out vec4 fragColor;\n" +
+                    "void main() {\n" +
+                    "   vec3 yuv;\n" +
+                    "   yuv.x = texture(texY, texCoord).r + 0.0625;\n" +
+                    "   yuv.y = texture(texUV,texCoord).r - 0.5;\n" +
+                    "   yuv.z = texture(texUV,texCoord).a - 0.5;\n" +
+                    "   fragColor = vec4(convert * yuv, 1.0);\n" +
+                    "}";
 
     private int program;
     private int vMatrix;
-    private int vPosition;
-    private int vTexCoord;
+    private static final int vPosition = 0;
+    private static final int vTexCoord = 1;
     //顶点缓冲坐标
     private FloatBuffer vertexBuffer;
     //纹理缓冲坐标
     private FloatBuffer textureBuffer;
     //matrix
     private float[] matrix = new float[16];
+    //加载Y和UV
+    private int[] texUniLocation = {0, 1};
     //渲染Y和UV
     private int[] textures = new int[2];
-    //加载Y和UV
-    private int[] texUniLocation = new int[2];
+    //PBO
+    private int[] pboY = new int[1];
+    private int[] pboUV = new int[1];
     //Frame宽高
-    private int frameW, frameH, frameWH;
+    private int frameW, frameH;
+    private int frameW2, frameH2;
+    private int frameSize, frameSize2;
 
     public RenderNV12(GLSurfaceView glSurfaceView, int frameW, int frameH) {
         this.glSurfaceView = glSurfaceView;
         this.frameW = frameW;
         this.frameH = frameH;
-        this.frameWH = frameW * frameH;
+        this.frameW2 = frameW >> 1;
+        this.frameH2 = frameH >> 1;
+        this.frameSize = frameW * frameH;
+        this.frameSize2 = frameSize >> 1;
         //创建顶点坐标
         ByteBuffer bb1 = ByteBuffer.allocateDirect(32);
         bb1.order(ByteOrder.nativeOrder());
@@ -104,8 +116,9 @@ public final class RenderNV12 implements IRender {
 
 //==================================================================================================
 
+    private byte[] data;
     //Frame
-    private Buffer frame;
+    private ByteBuffer frame;
     //是否渲染
     private volatile boolean isRender;
     //GLSurfaceView
@@ -123,9 +136,12 @@ public final class RenderNV12 implements IRender {
     }
 
     @Override
-    public synchronized void updatePreview(Buffer frame) {
+    public synchronized void updatePreview(ByteBuffer frame) {
         if (this.isRender) {
+            frame.clear();
             this.frame = frame;
+            if (data==null) data = new byte[frame.capacity()];
+            frame.get(data);
             this.glSurfaceView.requestRender();
         }
     }
@@ -141,7 +157,7 @@ public final class RenderNV12 implements IRender {
     @Override
     public void onSurfaceChanged(GL10 gl, int width, int height) {
         //2.1-重置坐标
-        GLES20.glViewport(0, 0, width, height);
+        GLES31.glViewport(0, 0, width, height);
         //2.2-update view port
         setShowMatrix(matrix, frameH, frameW, width, height);
         //2.3-x轴做镜像
@@ -175,125 +191,174 @@ public final class RenderNV12 implements IRender {
     }
 
     private int loadShader(int shaderType, String shaderSource) {
-        int shader = GLES20.glCreateShader(shaderType);
-        if (shader > GLES20.GL_NONE) {
-            GLES20.glShaderSource(shader, shaderSource);
-            GLES20.glCompileShader(shader);
+        int shader = GLES31.glCreateShader(shaderType);
+        if (shader > GLES31.GL_NONE) {
+            GLES31.glShaderSource(shader, shaderSource);
+            GLES31.glCompileShader(shader);
             int[] compiled = new int[1];
-            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0);
-            if (compiled[0] == GLES20.GL_FALSE) {
-                Log.e(TAG, "GLES20 Error: " + GLES20.glGetShaderInfoLog(shader));
-                GLES20.glDeleteShader(shader);
-                shader = GLES20.GL_FALSE;
+            GLES31.glGetShaderiv(shader, GLES31.GL_COMPILE_STATUS, compiled, 0);
+            if (compiled[0] == GLES31.GL_FALSE) {
+                Log.e(TAG, "GLES31 Error: " + GLES31.glGetShaderInfoLog(shader));
+                GLES31.glDeleteShader(shader);
+                shader = GLES31.GL_NONE;
             }
         }
         return shader;
     }
 
     private void checkGlError(String action) {
-        int error = GLES20.glGetError();
-        if (GLES20.GL_NO_ERROR != error) {
+        int error = GLES31.glGetError();
+        if (GLES31.GL_NO_ERROR != error) {
             Log.e(TAG, action + " glError:" + error);
         }
     }
 
     private void createGlCondition() {
-        //1.1-创建纹理
-        createTexture();
-        //1.2-加载shader
-        int vertexId = loadShader(GLES20.GL_VERTEX_SHADER, SHADER_VERTEX);
-        int fragmentId = loadShader(GLES20.GL_FRAGMENT_SHADER, SHADER_FRAGMENT);
-        //1.3-创建program
-        program = GLES20.glCreateProgram();
-        if (program == GLES20.GL_NONE || vertexId == GLES20.GL_NONE || fragmentId == GLES20.GL_NONE) {
-            Log.e(TAG, "GL: program=" + program);
-            Log.e(TAG, "GL: vertex=" + vertexId);
-            Log.e(TAG, "GL: fragment=" + fragmentId);
-        } else {
-            //1.4-添加program和shader
-            GLES20.glAttachShader(program, vertexId);
-            GLES20.glAttachShader(program, fragmentId);
-            //1.5-link program
-            GLES20.glLinkProgram(program);
-            //1.6-release
-            GLES20.glDeleteShader(vertexId);
-            GLES20.glDeleteShader(fragmentId);
+        //1.1-加载shader
+        int vertexId = loadShader(GLES31.GL_VERTEX_SHADER, SHADER_VERTEX);
+        checkGlError("loadShaderVertex");
+        if (GLES31.GL_NONE == vertexId) return;
+        int fragmentId = loadShader(GLES31.GL_FRAGMENT_SHADER, SHADER_FRAGMENT);
+        checkGlError("loadShaderFragment");
+        if (GLES31.GL_NONE == fragmentId) return;
+        //1.2-创建program
+        program = GLES31.glCreateProgram();
+        checkGlError("glCreateProgram");
+        if (GLES31.GL_NONE == program) return;
+        //1.3-添加program和shader
+        GLES31.glAttachShader(program, vertexId);
+        checkGlError("glAttachShaderVertex");
+        GLES31.glAttachShader(program, fragmentId);
+        checkGlError("glAttachShaderFragment");
+        //1.4-release
+        GLES31.glDeleteShader(vertexId);
+        checkGlError("glDeleteShaderVertex");
+        GLES31.glDeleteShader(fragmentId);
+        checkGlError("glDeleteShaderFragment");
+        //1.5-link program
+        GLES31.glLinkProgram(program);
+        checkGlError("glLinkProgram");
+        //1.6-checkLink
+        int[] linkStatus = new int[1];
+        GLES31.glGetProgramiv(program, GLES31.GL_LINK_STATUS, linkStatus, 0);
+        if (linkStatus[0] == GLES31.GL_FALSE) {
+            Log.e(TAG, "GLES31 Error: glLinkProgram");
+            Log.e(TAG, GLES31.glGetProgramInfoLog(program));
+            GLES31.glDeleteProgram(program);
+            program = GLES31.GL_NONE;
+            return;
         }
-        //1.7-获取属性值
-        vMatrix = GLES20.glGetUniformLocation(program, "vMatrix");
-        vPosition = GLES20.glGetAttribLocation(program, "vPosition");
-        vTexCoord = GLES20.glGetAttribLocation(program, "vTexCoord");
-        //1.6.2-获取shader里y和uv对应的纹理uniform变量的地址,这个在后面会被设置到Texture上
-        texUniLocation[0] = GLES20.glGetUniformLocation(program, "texY");
-        texUniLocation[1] = GLES20.glGetUniformLocation(program, "texUV");
+        //1.7-获取属性位置值
+        vMatrix = GLES31.glGetUniformLocation(program, "vMatrix");
+        texUniLocation[0] = GLES31.glGetUniformLocation(program, "texY");
+        texUniLocation[1] = GLES31.glGetUniformLocation(program, "texUV");
+        //1.8-创建纹理
+        createTexture();
+        checkGlError("createTexture");
+        //1.9-创建PBO Y
+        GLES31.glGenBuffers(pboY.length, pboY, 0);
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pboY[0]);
+        GLES31.glBufferData(GLES31.GL_PIXEL_UNPACK_BUFFER, frameSize, null, GLES31.GL_STREAM_DRAW);
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, GLES31.GL_NONE);
+        //1.9-创建PBO UV
+        GLES31.glGenBuffers(pboUV.length, pboUV, 0);
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pboUV[0]);
+        GLES31.glBufferData(GLES31.GL_PIXEL_UNPACK_BUFFER, frameSize2, null, GLES31.GL_STREAM_DRAW);
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, GLES31.GL_NONE);
     }
 
     private void createTexture() {
         //生成纹理
-        GLES20.glGenTextures(2, textures, 0);
+        GLES31.glGenTextures(textures.length, textures, 0);
         //绑定texture_Y
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, textures[0]);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_WRAP_S, GLES31.GL_REPEAT);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_WRAP_T, GLES31.GL_REPEAT);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_MIN_FILTER, GLES31.GL_LINEAR);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_MAG_FILTER, GLES31.GL_LINEAR);
+        GLES31.glTexImage2D(GLES31.GL_TEXTURE_2D, 0, GLES31.GL_LUMINANCE,
+                frameW, frameH, 0, GLES31.GL_LUMINANCE, GLES31.GL_UNSIGNED_BYTE, null);
         //绑定texture_UV
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[1]);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, textures[1]);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_WRAP_S, GLES31.GL_REPEAT);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_WRAP_T, GLES31.GL_REPEAT);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_MIN_FILTER, GLES31.GL_LINEAR);
+        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_MAG_FILTER, GLES31.GL_LINEAR);
+        GLES31.glTexImage2D(GLES31.GL_TEXTURE_2D, 0, GLES31.GL_LUMINANCE_ALPHA, frameW2,
+                frameH2, 0, GLES31.GL_LUMINANCE_ALPHA, GLES31.GL_UNSIGNED_BYTE, null);
     }
 
     private synchronized void renderFrame() {
         if (program == 0 || frame == null) return;
         long start = System.currentTimeMillis();
+
         //3.1-清空画布
-        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        GLES31.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT);
         //3.2-使用program
-        GLES20.glUseProgram(program);
+        GLES31.glUseProgram(program);
         //3.3-设置渲染的坐标
-        GLES20.glUniformMatrix4fv(vMatrix, 1, false, matrix, 0);
+        GLES31.glUniformMatrix4fv(vMatrix, 1, false, matrix, 0);
 
-        //3.4.1-绑定texY
-        frame.limit(frameWH);
-        frame.position(0);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
-        //3.4.2-使用texY
-        long start2 = System.currentTimeMillis();
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE,
-                frameW, frameH, 0, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, frame);
-        GLES20.glUniform1i(texUniLocation[0], 0);
-        Log.d(TAG, "renderTime2=" + (System.currentTimeMillis() - start2));
+        //3.4-PBO Y
+        //frame.limit(frameSize);
+        //frame.position(0);
+        GLES31.glActiveTexture(GLES31.GL_TEXTURE0);
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, textures[0]);
+        GLES31.glUniform1i(texUniLocation[0], 0);
+        //TODO==========================StartY
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pboY[0]);
+        GLES31.glTexImage2D(GLES31.GL_TEXTURE_2D, 0, GLES31.GL_LUMINANCE,
+                frameW, frameH, 0, GLES31.GL_LUMINANCE, GLES31.GL_UNSIGNED_BYTE, null);
+        GLES31.glBufferData(GLES31.GL_PIXEL_UNPACK_BUFFER, frameSize, null, GLES31.GL_STREAM_DRAW);
+        ByteBuffer buffer = (ByteBuffer) GLES31.glMapBufferRange(GLES31.GL_PIXEL_UNPACK_BUFFER, 0,
+                frameSize, GLES31.GL_MAP_WRITE_BIT | GLES31.GL_MAP_INVALIDATE_BUFFER_BIT);
+        if (buffer != null) {
+            buffer.put(data,0, frameSize);
+            GLES31.glUnmapBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER);
+        }else {
+            checkGlError("glMapBufferRange");
+        }
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, GLES31.GL_NONE);
+        //TODO==========================EndY
 
-        //3.4.3-绑定texUV
-        frame.position(frameWH);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[1]);
-        //3.4.4-使用texUV
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA,
-                frameW >> 1, frameH >> 1, 0, GLES20.GL_LUMINANCE_ALPHA,
-                GLES20.GL_UNSIGNED_BYTE, frame);
-        GLES20.glUniform1i(texUniLocation[1], 1);
+        //3.5-PBO UV
+        //frame.position(frameSize);
+        GLES31.glActiveTexture(GLES31.GL_TEXTURE1);
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, textures[1]);
+        GLES31.glUniform1i(texUniLocation[1], 1);
+        //TODO==========================StartUV
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pboUV[0]);
+        GLES31.glTexImage2D(GLES31.GL_TEXTURE_2D, 0, GLES31.GL_LUMINANCE_ALPHA, frameW2,
+                frameH2, 0, GLES31.GL_LUMINANCE_ALPHA, GLES31.GL_UNSIGNED_BYTE, null);
+        GLES31.glBufferData(GLES31.GL_PIXEL_UNPACK_BUFFER, frameSize2, null, GLES31.GL_STREAM_DRAW);
+        ByteBuffer buffer2 = (ByteBuffer) GLES31.glMapBufferRange(GLES31.GL_PIXEL_UNPACK_BUFFER, 0,
+                frameSize2, GLES31.GL_MAP_WRITE_BIT | GLES31.GL_MAP_INVALIDATE_BUFFER_BIT);
+        if (buffer2 != null) {
+            buffer2.put(data,frameSize,frameSize2);
+            GLES31.glUnmapBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER);
+        }else {
+            checkGlError("glMapBufferRange");
+        }
+        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, GLES31.GL_NONE);
+        //TODO==========================EndUV
 
-        //3.5.1-设置渲染的坐标
-        GLES20.glEnableVertexAttribArray(vPosition);
-        GLES20.glVertexAttribPointer(vPosition, 2, GLES20.GL_FLOAT, false, 8, vertexBuffer);
-        //3.5.2-设置渲染的纹理属性值
-        GLES20.glEnableVertexAttribArray(vTexCoord);
-        GLES20.glVertexAttribPointer(vTexCoord, 2, GLES20.GL_FLOAT, false, 8, textureBuffer);
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+        //3.6-设置渲染的坐标
+        GLES31.glEnableVertexAttribArray(vPosition);
+        GLES31.glVertexAttribPointer(vPosition, 2, GLES31.GL_FLOAT, false, 8, vertexBuffer);
+        GLES31.glEnableVertexAttribArray(vTexCoord);
+        GLES31.glVertexAttribPointer(vTexCoord, 2, GLES31.GL_FLOAT, false, 8, textureBuffer);
 
-        //3.6-禁用顶点属性数组
+        //3.7-绘制
+        GLES31.glDrawArrays(GLES31.GL_TRIANGLE_STRIP, 0, 4);
+        //3.8-禁用顶点属性数组
         frame = null;
-        GLES20.glDisableVertexAttribArray(vPosition);
-        GLES20.glDisableVertexAttribArray(vTexCoord);
-        //3.7-解绑：4ms
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, GLES20.GL_NONE);
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, GLES20.GL_NONE);
-        Log.d(TAG, "renderTime=" + (System.currentTimeMillis() - start));
+        GLES31.glDisableVertexAttribArray(vPosition);
+        GLES31.glDisableVertexAttribArray(vTexCoord);
+        //3.9-解绑
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, GLES31.GL_NONE);
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, GLES31.GL_NONE);
+        //Log.d(TAG, "renderTime=" + (System.currentTimeMillis() - start));
     }
 
 }

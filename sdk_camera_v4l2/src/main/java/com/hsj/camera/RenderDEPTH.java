@@ -101,7 +101,7 @@ public final class RenderDEPTH implements IRender {
 //==================================================================================================
 
     //Frame
-    private Buffer frame;
+    private ByteBuffer frame;
     //是否渲染
     private volatile boolean isRender;
     //GLSurfaceView
@@ -119,7 +119,7 @@ public final class RenderDEPTH implements IRender {
     }
 
     @Override
-    public synchronized void updatePreview(Buffer frame) {
+    public synchronized void updatePreview(ByteBuffer frame) {
         if (this.isRender) {
             this.frame = frame;
             this.glSurfaceView.requestRender();

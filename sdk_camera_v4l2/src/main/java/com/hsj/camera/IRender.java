@@ -1,7 +1,7 @@
 package com.hsj.camera;
 
 import android.opengl.GLSurfaceView;
-import java.nio.Buffer;
+import java.nio.ByteBuffer;
 
 /**
  * @Author:Hsj
@@ -11,5 +11,5 @@ import java.nio.Buffer;
  */
 public interface IRender extends GLSurfaceView.Renderer {
      void onRender(boolean isResume);
-     void updatePreview(Buffer frame);
+     void updatePreview(ByteBuffer frame);
 }

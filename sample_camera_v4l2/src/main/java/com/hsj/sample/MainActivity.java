@@ -1,9 +1,6 @@
 package com.hsj.sample;
 
-import android.graphics.Color;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.View;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.hsj.camera.CameraAPI;
@@ -47,7 +44,7 @@ public final class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_destroy).setOnClickListener(v->destroy());
         //RGB
         CameraView cameraView = findViewById(R.id.preview);
-        renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.NV12);
+        renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.RGB);
     }
 
     @Override
@@ -139,8 +136,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private final IFrameCallback rgbCallback = frame -> renderRGB.updatePreview(frame);
 
-    private final IFrameCallback irCallback = frame -> {
-    };
+    private final IFrameCallback irCallback = frame -> {};
 
 //==================================================================================================
 

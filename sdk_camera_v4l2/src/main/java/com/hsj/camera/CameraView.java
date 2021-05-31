@@ -21,6 +21,7 @@ public final class CameraView extends GLSurfaceView implements GLSurfaceView.Ren
     public static final int YUYV = 0;
     public static final int NV12 = 1;
     public static final int DEPTH = 2;
+    public static final int RGB = 3;
     private IRender render;
 
     public CameraView(Context context) {
@@ -38,15 +39,17 @@ public final class CameraView extends GLSurfaceView implements GLSurfaceView.Ren
         if (frameW < 1 || frameH < 1) {
             throw new IllegalArgumentException("Frame width and height is unavailable");
         } else {
-            setEGLContextClientVersion(2);
+            setEGLContextClientVersion(3);
             setRenderer(this);
             setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
             if (frameFormat == NV12) {
                 render = new RenderNV12(this, frameW, frameH);
             } else if (frameFormat == YUYV) {
                 render = new RenderYUYV(this, frameW, frameH);
-            }else if (frameFormat == DEPTH) {
+            } else if (frameFormat == DEPTH) {
                 render = new RenderDEPTH(this, frameW, frameH);
+            } else if (frameFormat == RGB) {
+                render = new RenderRGB(this, frameW, frameH);
             } else {
                 throw new IllegalArgumentException("Not support render format: " + frameFormat);
             }

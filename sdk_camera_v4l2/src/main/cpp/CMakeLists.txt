@@ -1,23 +1,40 @@
 cmake_minimum_required(VERSION 3.10.2)
-
 project("camera_v4l2")
 
-set(MODULE_NAME camera)
+# set flag
 set(CMAKE_BUILD_TYPE RELEASE)
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -s")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -s")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
 
+# set common name
+set(MODULE_MAIN camera)
+set(DIR_YUV     libyuv)
+set(DIR_CAMERA  libcamera)
+set(DIR_DECODER libdecoder)
+set(DIR_JPEG    libjpeg-turbo)
+
+# log switch
 option(LOG_SWITCH "option for print log" ON)
 if(LOG_SWITCH)
     add_definitions(-DLOG_SWITCH)
 endif(LOG_SWITCH)
 
-include_directories(source)
-aux_source_directory(source DIR_SRC)
-add_library(${MODULE_NAME} SHARED ${DIR_SRC})
+# module yuv
+add_subdirectory(${DIR_YUV})
+# module jpeg
+add_subdirectory(${DIR_JPEG})
 
+# moudle main
+include_directories(${DIR_CAMERA} ${DIR_DECODER} ${DIR_JPEG} ${DIR_YUV}/include)
+aux_source_directory(${DIR_CAMERA} DIR_SRC)
+aux_source_directory(${DIR_DECODER} DIR_SRC2)
+list(APPEND DIR_SRC ${DIR_SRC2})
+add_library(${MODULE_MAIN} SHARED ${DIR_SRC})
+
+# find log
 find_library(log-lib log)
 
-target_link_libraries(${MODULE_NAME} ${log-lib} mediandk android jnigraphics)
+# target link libraries
+target_link_libraries(${MODULE_MAIN} ${log-lib} turbojpeg yuv mediandk android jnigraphics)
