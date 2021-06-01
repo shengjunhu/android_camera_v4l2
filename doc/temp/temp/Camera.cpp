@@ -363,6 +363,24 @@ ActionInfo Camera::setFrameCallback(JNIEnv *env, jobject frame_callback) {
     }
 }
 
+ActionInfo Camera::setPreview(ANativeWindow *window) {
+    if (STATUS_PARAM == getStatus()) {
+        if (preview != window) {
+            if (preview) {
+                ANativeWindow_release(preview);
+            }
+            preview = window;
+            if (LIKELY(preview)) {
+                ANativeWindow_setBuffersGeometry(preview, frameWidth, frameHeight, WINDOW_FORMAT_RGBA_8888);
+            }
+        }
+        return ACTION_SUCCESS;
+    } else {
+        LOGW(TAG, "setPreview: error status, %d", getStatus())
+        return ACTION_ERROR_SET_PREVIEW;
+    }
+}
+
 ActionInfo Camera::start() {
     ActionInfo action = ACTION_ERROR_START;
     if (STATUS_PARAM == getStatus()) {

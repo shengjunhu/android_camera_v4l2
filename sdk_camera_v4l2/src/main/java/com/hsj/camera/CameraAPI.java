@@ -1,6 +1,7 @@
 package com.hsj.camera;
 
 import android.util.Log;
+import android.view.Surface;
 
 /**
  * @Author:Hsj
@@ -67,12 +68,12 @@ public final class CameraAPI {
         }
     }
 
-    public final synchronized boolean setFrameSize(int width, int height, int pixelFormat) {
+    public final boolean setFrameSize(int width, int height, int frameFormat) {
         if (this.nativeObj == 0) {
             Log.w(TAG, "Can't be call after call destroy");
             return false;
         } else {
-            int status = nativeFrameSize(this.nativeObj, width, height, pixelFormat);
+            int status = nativeFrameSize(this.nativeObj, width, height, frameFormat);
             Logger.d(TAG, "setFrameSize: " + status);
             return STATUS_SUCCESS == status;
         }
@@ -85,6 +86,17 @@ public final class CameraAPI {
         } else {
             int status = nativeFrameCallback(this.nativeObj,frameCallback);
             Logger.d(TAG, "setFrameCallback: " + status);
+            return STATUS_SUCCESS == status;
+        }
+    }
+
+    public final boolean setPreview(Surface surface){
+        if (this.nativeObj == 0) {
+            Log.w(TAG, "Can't be call after call setPreview");
+            return false;
+        } else {
+            int status = nativePreview(this.nativeObj, surface);
+            Logger.d(TAG, "setPreview: " + status);
             return STATUS_SUCCESS == status;
         }
     }
@@ -134,6 +146,8 @@ public final class CameraAPI {
     private native int nativeFrameSize(long nativeObj, int width, int height, int pixelFormat);
 
     private native int nativeFrameCallback(long nativeObj, IFrameCallback frameCallback);
+
+    private native int nativePreview(long nativeObj, Surface surface);
 
     private native int nativeStart(long nativeObj);
 

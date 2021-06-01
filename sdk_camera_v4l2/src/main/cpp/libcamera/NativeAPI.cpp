@@ -3,12 +3,13 @@
 //
 
 #include "Common.h"
-#include "Camera.h"
 #include "NativeAPI.h"
+#include "CameraAPI.h"
 
-#define TAG "JNI"
+#define TAG "NativeAPI"
 #define OBJECT_ID "nativeObj"
 #define CLASS_NAME "com/hsj/camera/CameraAPI"
+
 typedef jlong CAMERA_ID;
 
 static void setFieldLong(JNIEnv *env, jobject obj, const char *fieldName, jlong value) {
@@ -23,14 +24,14 @@ static void setFieldLong(JNIEnv *env, jobject obj, const char *fieldName, jlong 
 }
 
 static CAMERA_ID nativeInit(JNIEnv *env, jobject thiz) {
-    auto *camera = new Camera();
+    auto *camera = new CameraAPI();
     auto cameraId = reinterpret_cast<CAMERA_ID>(camera);
     setFieldLong(env, thiz, OBJECT_ID, cameraId);
     return cameraId;
 }
 
 static ActionInfo nativeCreate(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, int productId, jint vendorId) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_RELEASE;
     if (LIKELY(camera)) {
         status = camera->open(productId, vendorId);
@@ -40,7 +41,7 @@ static ActionInfo nativeCreate(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, in
 }
 
 static ActionInfo nativeAutoExposure(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jboolean isAuto) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
     if (LIKELY(camera)) {
         status = camera->autoExposure(isAuto);
@@ -50,7 +51,7 @@ static ActionInfo nativeAutoExposure(JNIEnv *env, jobject thiz, CAMERA_ID camera
 }
 
 static ActionInfo nativeSetExposure(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, int level) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
     if (LIKELY(camera)) {
         if (level > 0) {
@@ -65,7 +66,7 @@ static ActionInfo nativeSetExposure(JNIEnv *env, jobject thiz, CAMERA_ID cameraI
 }
 
 static ActionInfo nativeFrameCallback(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jobject frame_callback) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
     if (LIKELY(camera)) {
         jobject _frame_callback = env->NewGlobalRef(frame_callback);
@@ -75,12 +76,12 @@ static ActionInfo nativeFrameCallback(JNIEnv *env, jobject thiz, CAMERA_ID camer
     return status;
 }
 
-static ActionInfo nativeFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jint width, jint height, jint pixelFormat) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+static ActionInfo nativeFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jint width, jint height, jint frameFormat) {
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
     if (LIKELY(camera)) {
         if (width > 0 && height > 0) {
-            status = camera->setFrameSize(width, height, pixelFormat);
+            status = camera->setFrameSize(width, height, frameFormat);
         } else {
             status = ACTION_ERROR_SET_W_H;
             LOGE(TAG, "camera->setFrameSize() failed: width and height must more than 0")
@@ -90,8 +91,18 @@ static ActionInfo nativeFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId,
     return status;
 }
 
+static ActionInfo nativePreview(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jobject surface) {
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
+    ActionInfo status = ACTION_ERROR_DESTROY;
+    if (LIKELY(camera)) {
+        status = camera->setPreview(surface ? ANativeWindow_fromSurface(env, surface) : NULL);
+    }
+    LOGD(TAG, "camera->setPreview(): %d", status)
+    return status;
+}
+
 static ActionInfo nativeStart(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
     if (LIKELY(camera)) {
         status = camera->start();
@@ -101,7 +112,7 @@ static ActionInfo nativeStart(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
 }
 
 static ActionInfo nativeStop(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
     if (LIKELY(camera)) {
         status = camera->stop();
@@ -111,7 +122,7 @@ static ActionInfo nativeStop(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
 }
 
 static ActionInfo nativeDestroy(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
-    auto *camera = reinterpret_cast<Camera *>(cameraId);
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     setFieldLong(env, thiz, OBJECT_ID, 0);
     ActionInfo status = ACTION_ERROR_RELEASE;
     if (LIKELY(camera)) {
@@ -131,6 +142,7 @@ static const JNINativeMethod METHODS[] = {
         {"nativeSetExposure",   "(JI)I",                               (void *) nativeSetExposure},
         {"nativeFrameCallback", "(JLcom/hsj/camera/IFrameCallback;)I", (void *) nativeFrameCallback},
         {"nativeFrameSize",     "(JIII)I",                             (void *) nativeFrameSize},
+        {"nativePreview",       "(JLandroid/view/Surface)I",           (void *) nativePreview},
         {"nativeStart",         "(J)I",                                (void *) nativeStart},
         {"nativeStop",          "(J)I",                                (void *) nativeStop},
         {"nativeDestroy",       "(J)I",                                (void *) nativeDestroy},

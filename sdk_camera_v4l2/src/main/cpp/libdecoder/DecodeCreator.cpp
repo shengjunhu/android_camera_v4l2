@@ -9,7 +9,8 @@
 #define TAG "DecodeCreator"
 
 DecodeCreator::DecodeCreator() :
-        decoder(NULL) {
+        _type(DECODE_UNKNOWN),
+        decoder(NULL){
 }
 
 DecodeCreator::~DecodeCreator() {
@@ -23,17 +24,26 @@ bool DecodeCreator::createType(DecodeType type, int frameW, int frameH) {
     } else if (frameW <= 0 || frameH <= 0) {
         LOGE(TAG, "init frameW or frameH is error")
     } else if (DECODE_HW == type) {
+        _type = type;
         decoder = CREATE_CLASS(DecoderHw)
-    } else {
+    } else if (DECODE_SW == type){
+        _type = type;
         decoder = CREATE_CLASS(DecoderJp)
     }
     if (decoder) {
         decoder->width = frameW;
         decoder->height = frameH;
         ret = decoder->create();
-        if (!ret) SAFE_DELETE(decoder)
+        if (!ret) {
+            SAFE_DELETE(decoder)
+            _type = DECODE_UNKNOWN;
+        }
     }
     return ret;
+}
+
+DecodeType DecodeCreator::getDecodeType(){
+    return _type;
 }
 
 bool DecodeCreator::start() {
