@@ -38,7 +38,7 @@ public final class CameraView extends GLSurfaceView implements GLSurfaceView.Ren
         if (frameW < 1 || frameH < 1) {
             throw new IllegalArgumentException("Frame width and height is unavailable");
         } else {
-            setEGLContextClientVersion(3);
+            setEGLContextClientVersion(2);
             setRenderer(this);
             setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
             setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);

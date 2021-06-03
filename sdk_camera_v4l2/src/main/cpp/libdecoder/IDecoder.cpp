@@ -32,7 +32,7 @@ bool IDecoder::start() {
     return ret;
 }
 
-uint8_t* IDecoder::convert(void *raw_buffer, unsigned int raw_size) {
+uint8_t* IDecoder::convert(void *raw_buffer, unsigned long raw_size) {
     uint8_t* out_buffer = NULL;
     if (STATUS_RUN == onStatus()) {
         out_buffer = this->convert(raw_buffer, raw_size);

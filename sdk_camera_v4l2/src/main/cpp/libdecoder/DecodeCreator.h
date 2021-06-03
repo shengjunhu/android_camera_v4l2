@@ -15,15 +15,14 @@ typedef enum DecodeType {
 
 class DecodeCreator {
 private:
-    DecodeType _type;
+    DecodeType type;
     IDecoder *decoder;
 public:
-    DecodeCreator();
+    DecodeCreator(int frameW, int frameH);
     ~DecodeCreator();
-    bool createType(DecodeType _type, int frameW, int frameH);
-    DecodeType getDecodeType();
+    PixelFormat getPixelFormat();
     bool start();
-    uint8_t *convert(void *raw_buffer, unsigned int raw_size);
+    uint8_t *convert(void *raw_buffer, unsigned long raw_size);
     bool stop();
     void destroy();
 };

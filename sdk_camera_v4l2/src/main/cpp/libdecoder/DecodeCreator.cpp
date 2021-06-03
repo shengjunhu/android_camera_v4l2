@@ -8,70 +8,75 @@
 
 #define TAG "DecodeCreator"
 
-DecodeCreator::DecodeCreator() :
-        _type(DECODE_UNKNOWN),
-        decoder(NULL){
+DecodeCreator::DecodeCreator(int frameW, int frameH) : decoder(NULL) {
+    if (frameW <= 0 || frameH <= 0) {
+        LOGE(TAG, "init frameW or frameH is error")
+    } else {
+        decoder = CREATE_CLASS(DecoderHw);
+        decoder->width = frameW;
+        decoder->height = frameH;
+        bool ret = decoder->create();
+        if (ret) {
+            type = DECODE_HW;
+            LOGD(TAG, "decode by Hardware")
+        } else {
+            decoder->destroy();
+            SAFE_DELETE(decoder)
+            type = DECODE_SW;
+            decoder = CREATE_CLASS(DecoderJp);
+            decoder->width = frameW;
+            decoder->height = frameH;
+            decoder->create();
+            LOGD(TAG, "decode by Software")
+        }
+    }
 }
 
 DecodeCreator::~DecodeCreator() {
     destroy();
 }
 
-bool DecodeCreator::createType(DecodeType type, int frameW, int frameH) {
-    bool ret = false;
-    if (decoder) {
-        SAFE_DELETE(decoder)
-    } else if (frameW <= 0 || frameH <= 0) {
-        LOGE(TAG, "init frameW or frameH is error")
-    } else if (DECODE_HW == type) {
-        _type = type;
-        decoder = CREATE_CLASS(DecoderHw)
-    } else if (DECODE_SW == type){
-        _type = type;
-        decoder = CREATE_CLASS(DecoderJp)
+PixelFormat DecodeCreator::getPixelFormat() {
+    switch (type){
+        case DECODE_HW:
+            return PIXEL_FORMAT_RGB;
+        case DECODE_SW:
+            return PIXEL_FORMAT_RGB;
+        case DECODE_UNKNOWN:
+        default:
+            return PIXEL_FORMAT_ERROR;
     }
-    if (decoder) {
-        decoder->width = frameW;
-        decoder->height = frameH;
-        ret = decoder->create();
-        if (!ret) {
-            SAFE_DELETE(decoder)
-            _type = DECODE_UNKNOWN;
-        }
-    }
-    return ret;
-}
-
-DecodeType DecodeCreator::getDecodeType(){
-    return _type;
 }
 
 bool DecodeCreator::start() {
-    if (decoder) {
+    if (LIKELY(decoder)) {
         return decoder->start();
     } else {
+        LOGE(TAG, "decoder is NULL")
         return false;
     }
 }
 
-uint8_t *DecodeCreator::convert(void *raw_buffer, unsigned int raw_size) {
-    if (decoder) {
+uint8_t *DecodeCreator::convert(void *raw_buffer, unsigned long raw_size) {
+    if (LIKELY(decoder)) {
         return decoder->convert(raw_buffer, raw_size);
     } else {
+        LOGE(TAG, "decoder is NULL")
         return NULL;
     }
 }
 
 bool DecodeCreator::stop() {
-    if (decoder) {
+    if (LIKELY(decoder)) {
         return decoder->stop();
     } else {
+        LOGE(TAG, "decoder is NULL")
         return false;
     }
 }
 
 void DecodeCreator::destroy() {
-    if (decoder) {
+    if (LIKELY(decoder)) {
         decoder->destroy();
         SAFE_DELETE(decoder)
     }

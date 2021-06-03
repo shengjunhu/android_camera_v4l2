@@ -6,6 +6,7 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.Log;
+import android.view.Surface;
 
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
@@ -106,6 +107,11 @@ public final class RenderDEPTH implements IRender {
     private volatile boolean isRender;
     //GLSurfaceView
     private GLSurfaceView glSurfaceView;
+
+    @Override
+    public Surface getSurface() {
+        return null;
+    }
 
     @Override
     public synchronized void onRender(boolean isResume) {

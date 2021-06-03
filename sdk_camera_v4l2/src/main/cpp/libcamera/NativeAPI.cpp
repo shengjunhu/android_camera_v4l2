@@ -142,7 +142,7 @@ static const JNINativeMethod METHODS[] = {
         {"nativeSetExposure",   "(JI)I",                               (void *) nativeSetExposure},
         {"nativeFrameCallback", "(JLcom/hsj/camera/IFrameCallback;)I", (void *) nativeFrameCallback},
         {"nativeFrameSize",     "(JIII)I",                             (void *) nativeFrameSize},
-        {"nativePreview",       "(JLandroid/view/Surface)I",           (void *) nativePreview},
+        {"nativePreview",       "(JLandroid/view/Surface;)I",          (void *) nativePreview},
         {"nativeStart",         "(J)I",                                (void *) nativeStart},
         {"nativeStop",          "(J)I",                                (void *) nativeStop},
         {"nativeDestroy",       "(J)I",                                (void *) nativeDestroy},

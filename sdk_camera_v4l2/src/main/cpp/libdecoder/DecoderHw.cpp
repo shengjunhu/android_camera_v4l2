@@ -12,9 +12,8 @@
 #define MIME_TYPE "video/mjpeg"
 
 bool DecoderHw::create() {
-    if (mediaCodec == NULL) {
-        mediaCodec = AMediaCodec_createDecoderByType(MIME_TYPE);
-    }
+    //1-Create MediaCodec
+    mediaCodec = AMediaCodec_createDecoderByType(MIME_TYPE);
     AMediaFormat *mediaFormat = AMediaFormat_new();
     AMediaFormat_setString(mediaFormat, AMEDIAFORMAT_KEY_MIME, MIME_TYPE);
     AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_WIDTH, width);
@@ -25,9 +24,9 @@ bool DecoderHw::create() {
     AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_BIT_RATE, width * height);
     if (AMEDIA_OK == AMediaCodec_configure(mediaCodec, mediaFormat, NULL, NULL, 0)) {
         //AMediaFormat_delete(format);
-        SAFE_FREE(outBuffer)
+        SAFE_FREE(out_buffer)
         frameWH = width * height;
-        outBuffer = (uint8_t *) calloc(1, frameWH * 3);
+        out_buffer = (uint8_t *) calloc(1, frameWH * 3);
         LOGD(TAG, "create success")
         return true;
     } else {
@@ -40,6 +39,7 @@ bool DecoderHw::create() {
 }
 
 bool DecoderHw::start() {
+    //2-Start
     if (AMEDIA_OK == AMediaCodec_start(mediaCodec)) {
         LOGD(TAG, "start success")
         return true;
@@ -49,39 +49,42 @@ bool DecoderHw::start() {
     }
 }
 
+//6.5ms
 uint8_t *DecoderHw::convertRGB(uint8_t *nv12) {
     if (LIKELY(nv12)) {
+        uint64_t start = timeMs();
         libyuv::NV12ToRAW(nv12, width,nv12 + frameWH, width,
-                outBuffer, width * 3, width, height);
-        return outBuffer;
+                          out_buffer, width * 3, width, height);
+        LOGD(TAG,"convertRGB=%lld",timeMs()-start)
+        return out_buffer;
     } else {
         return NULL;
     }
 }
 
-uint8_t *DecoderHw::convert(void *raw_buffer, unsigned int raw_size) {
+uint8_t *DecoderHw::convert(void *raw_buffer, unsigned long raw_size) {
     uint8_t *out_buffer = NULL;
-    //1-get input buffer index on buffers
+    //3.1-get input buffer index on buffers
     ssize_t in_buffer_id = AMediaCodec_dequeueInputBuffer(mediaCodec, TIME_OUT_US);
     if (in_buffer_id < 0) {
-        //TODO 当获取输入index不可用时，可采用循环do{}while()获取到输入index为止
+        //当获取输入index不可用时，可采用循环do{}while()获取到输入index为止
         LOGW(TAG, "No available input buffer")
     } else {
-        //2-get input buffer by input buffer index
+        //3.2-get input buffer by input buffer index
         size_t out_size;
         uint8_t *in_buffer = AMediaCodec_getInputBuffer(mediaCodec, in_buffer_id, &out_size);
-        //3-put raw buffer to input buffer
+        //3.3-put raw buffer to input buffer
         memcpy(in_buffer, raw_buffer, raw_size);
-        //4-submit input buffer to queue buffers of input
+        //3.4-submit input buffer to queue buffers of input
         AMediaCodec_queueInputBuffer(mediaCodec, in_buffer_id, 0, raw_size, timeUs(), 0);
-        //TODO 当前解码是队列方式,如果取当前帧解码的数据要加do{}while(),直到输出返回,耗时30ms左右
-        //5-get out buffer index of decode by output queue buffers
+        //当前解码是队列方式,如果取当前帧解码的数据要加do{}while(),直到输出返回,耗时30ms左右
+        //3.5-get out buffer index of decode by output queue buffers
         AMediaCodecBufferInfo info;
         ssize_t out_buffer_id = AMediaCodec_dequeueOutputBuffer(mediaCodec, &info, TIME_OUT_US);
         if (out_buffer_id >= 0) {
-            //6-get output buffer by output buffer index
+            //3.6-get output buffer by output buffer index
             out_buffer = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
-            //7-release output buffer by output buffer index
+            //3.7-release output buffer by output buffer index
             AMediaCodec_releaseOutputBuffer(mediaCodec, out_buffer_id, false);
         } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
             LOGW(TAG, "media info output buffers changed")
@@ -102,11 +105,12 @@ uint8_t *DecoderHw::convert(void *raw_buffer, unsigned int raw_size) {
             LOGW(TAG, "Unexpected info code: %zd", out_buffer_id)
         }
     }
-    //8-return
+    //3.8-return
     return convertRGB(out_buffer);
 }
 
 bool DecoderHw::stop() {
+    //4-Stop
     if (AMEDIA_OK == AMediaCodec_stop(mediaCodec)) {
         LOGD(TAG, "stop success")
         return true;
@@ -117,11 +121,12 @@ bool DecoderHw::stop() {
 }
 
 void DecoderHw::destroy() {
+    //5-Destroy
     if (mediaCodec != NULL) {
         AMediaCodec_delete(mediaCodec);
         mediaCodec = NULL;
     }
-    SAFE_FREE(outBuffer)
+    SAFE_FREE(out_buffer)
     width = 0;
     height = 0;
     frameWH = 0;

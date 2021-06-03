@@ -19,11 +19,11 @@ private:
     inline const unsigned int onStatus() const;
     volatile int status = 0;
 public:
-    int width,height;
+    int width, height;
     CONSTRUCT_CLASS(IDecoder);
     virtual bool create();
     virtual bool start();
-    virtual uint8_t* convert(void *raw_buffer, unsigned int raw_size);
+    virtual uint8_t* convert(void *raw_buffer, unsigned long raw_size);
     virtual bool stop();
     virtual void destroy();
 };

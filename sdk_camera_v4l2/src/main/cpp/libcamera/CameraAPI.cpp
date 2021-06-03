@@ -26,7 +26,7 @@ CameraAPI::CameraAPI() :
         pixelBytes(0),
         frameWidth(0),
         frameHeight(0),
-        pixelFormat(0),
+        frameFormat(0),
         thread_camera(0),
         status(STATUS_READY),
         preview(NULL),
@@ -141,12 +141,16 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
             //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
             //time1 = timeMs();
 
-            //MJPEG->RGB24/NV12
+            //MJPEG->NV12/RGB24
+            //u_int64_t start = timeMs();
             uint8_t *out = camera->decoder->convert(camera->buffers[buffer.index].start,buffer.bytesused);
-            //LOGD(TAG, "mjpeg2rgb: %lld", timeMs() - time1)
+            //LOGD(TAG, "decodeTime=%lld", timeMs() - start)
+            //LOGD(TAG, "mjpeg2rgbTime=%lld", timeMs() - time1)
 
             //Render
-            renderFrame(outBuffer);
+            //u_int64_t start = timeMs();
+            renderFrame(out);
+            //LOGD(TAG, "renderTime=%lld", timeMs() - start)
 
             //RGB24->Java
             sendFrame(env, out);
@@ -167,7 +171,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
 }
 
 void CameraAPI::renderFrame(uint8_t *data){
-    if (preview && data) preview->update(data);
+    if (preview && data) preview->render(data);
 }
 
 void CameraAPI::sendFrame(JNIEnv *env, uint8_t *data) {
@@ -303,9 +307,8 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
                 SAFE_FREE(outBuffer)
                 pixelBytes = width * height * 3;
                 outBuffer = (uint8_t *) calloc(1, pixelBytes);
-                if (decoder == nullptr) {decoder = new DecodeCreator();}
-                if (!decoder->createType(DECODE_SW, width, height)){
-                    decoder->createType(DECODE_HW, width, height);
+                if (decoder == nullptr) {
+                    decoder = new DecodeCreator(width,height);
                 }
             }
         }
@@ -355,8 +358,8 @@ ActionInfo CameraAPI::setFrameCallback(JNIEnv *env, jobject frame_callback) {
                 jclass clazz = env->GetObjectClass(frame_callback);
                 if (LIKELY(clazz)) {
                     frameCallback = frame_callback;
-                    frameCallback_onFrame = env->GetMethodID(clazz,
-                                                             "onFrame","(Ljava/nio/ByteBuffer;)V");
+                    frameCallback_onFrame = env->GetMethodID(
+                            clazz,"onFrame","(Ljava/nio/ByteBuffer;)V");
                 }
                 env->ExceptionClear();
                 if (!frameCallback_onFrame) {
@@ -380,17 +383,7 @@ ActionInfo CameraAPI::setPreview(ANativeWindow *window) {
             SAFE_DELETE(preview);
         }
         if (LIKELY(window)){
-            PixelFormat pixelFormat = PIXEL_FORMAT_RGBA;
-            if (decoder == NULL) {
-                pixelFormat = PIXEL_FORMAT_YUYV;
-            } else {
-                DecodeType  type = decoder->getDecodeType();
-                if (type == DECODE_HW) {
-                    pixelFormat = PIXEL_FORMAT_RGB;
-                } else if (type == DECODE_SW) {
-                    pixelFormat = PIXEL_FORMAT_RGB;
-                }
-            }
+            PixelFormat pixelFormat = decoder ? decoder->getPixelFormat() : PIXEL_FORMAT_YUYV;
             preview = new CameraView(frameWidth, frameHeight, pixelFormat, window);
         }
         return ACTION_SUCCESS;

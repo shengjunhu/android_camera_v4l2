@@ -1,10 +1,17 @@
 package com.hsj.camera;
 
-import android.opengl.GLES31;
+import android.content.res.AssetManager;
+import android.graphics.SurfaceTexture;
+import android.opengl.GLES11Ext;
+import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.Surface;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -24,69 +31,37 @@ public final class RenderRGB implements IRender {
 
     /*
      * 顶点坐标
-     * 0 bottom left    (-1.0f, -1.0f)
-     * 1 bottom right   (1.0f, -1.0f)
-     * 2 top left       (-1.0f, 1.0f)
-     * 3 top right      (1.0f, 1.0f)
      */
-    private static final float VERTEX_BUFFER[] = {-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f};
+    private static final float VERTEX_BUFFER[] = {
+            -1.0f,  1.0f,  //top left
+            -1.0f, -1.0f,  //bottom left
+             1.0f,  1.0f,  //top right
+             1.0f, -1.0f,  //bottom left
+    };
 
     /*
-     * 纹理坐标
-     * 0 top left          (0.0f, 1.0f)
-     * 1 top right         (1.0f, 1.0f)
-     * 2 bottom left       (0.0f, 0.0f)
-     * 3 bottom right      (1.0f, 0.0f)
+     * 纹理坐标: 旋转90°, 再竖直镜像
+     * Camera: 后置Sensor->Rotate90°, 前置使用->Mirror
      */
-    private static final float TEXTURE_BUFFER[] = {0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+    private static final float TEXTURE_BUFFER[] = {
+            0.0f, 0.0f,  //top left
+            1.0f, 0.0f,  //bottom left
+            0.0f, 1.0f,  //top right
+            1.0f, 1.0f,  //bottom right
+    };
 
-    private static final String SHADER_VERTEX =
-            "#version 310 es\n" +
-                    "uniform mat4 vMatrix;\n" +
-                    "layout(location = 0) in vec4 vPosition;\n" +
-                    "layout(location = 1) in vec2 vTexCoord;\n" +
-                    "out vec2 texCoord;\n" +
-                    "void main() {\n" +
-                    "   texCoord = vTexCoord;\n" +
-                    "   gl_Position = vMatrix*vPosition;\n" +
-                    "}";
-
-    private static final String SHADER_FRAGMENT =
-            "#version 310 es\n" +
-                    "precision mediump float;\n" +
-                    "precision mediump sampler2D;\n" +
-                    "in vec2 texCoord;\n" +
-                    "uniform sampler2D vTexture;\n" +
-                    "out vec4 fragColor;\n" +
-                    "void main() {\n" +
-                    "   fragColor = texture(vTexture,texCoord);\n" +
-                    "}";
-
-    private int program;
-    private int vMatrix;
-    private static final int vPosition = 0;
-    private static final int vTexCoord = 1;
-    //顶点缓冲坐标
+    private int program, vPosition, vTexCoord, vTexture;
+    //顶点坐标
     private FloatBuffer vertexBuffer;
-    //纹理缓冲坐标
+    //纹理坐标
     private FloatBuffer textureBuffer;
-    //matrix
-    private float[] matrix = new float[16];
-    //加载RGB
-    private int[] texUniLocation = new int[1];
-    //渲染RGB24
+    //纹理
     private int[] textures = new int[1];
-    //PBO
-    private int index;
-    private int[] pbo = new int[2];
-    //Frame宽高
-    private int frameW, frameH, frameSize;
+    //预览
+    private SurfaceTexture surfaceTexture;
 
     public RenderRGB(GLSurfaceView glSurfaceView, int frameW, int frameH) {
         this.glSurfaceView = glSurfaceView;
-        this.frameW = frameW;
-        this.frameH = frameH;
-        this.frameSize = frameW * frameH * 3;
         //创建顶点坐标
         ByteBuffer bb1 = ByteBuffer.allocateDirect(32);
         bb1.order(ByteOrder.nativeOrder());
@@ -103,209 +78,187 @@ public final class RenderRGB implements IRender {
 
 //==================================================================================================
 
-    //Frame
-    private ByteBuffer frame;
-    //是否渲染
-    private volatile boolean isRender;
     //GLSurfaceView
     private GLSurfaceView glSurfaceView;
+
+    @Override
+    public Surface getSurface() {
+        if (surfaceTexture != null) {
+            return new Surface(surfaceTexture);
+        }
+        return null;
+    }
 
     @Override
     public synchronized void onRender(boolean isResume) {
         if (isResume) {
             this.glSurfaceView.onResume();
-            this.isRender = true;
         } else {
-            this.isRender = false;
+            if (this.surfaceTexture != null) {
+                this.surfaceTexture.release();
+                this.surfaceTexture = null;
+            }
+            this.textures[0] = 0;
             this.glSurfaceView.onPause();
         }
     }
 
     @Override
     public synchronized void updatePreview(ByteBuffer frame) {
-        if (this.isRender) {
-            this.frame = frame;
-            this.glSurfaceView.requestRender();
-        }
+
     }
 
 //==================================================================================================
 
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-        //1-Create OpenGL condition
+        //1-create gl condition
         createGlCondition();
     }
 
     @Override
     public void onSurfaceChanged(GL10 gl, int width, int height) {
-        //2.1-重置坐标
-        GLES31.glViewport(0, 0, width, height);
-        //2.2-update view port
-        setShowMatrix(matrix, frameH, frameW, width, height);
-        //2.3-x轴做镜像
-        Matrix.scaleM(matrix, 0, -1f, 1f, 1f);
-        //2.4-读取到数据是后置旋转270
-        Matrix.rotateM(matrix, 0, 270f, 0f, 0f, 1f);
+        //2-reset view port
+        GLES20.glViewport(0, 0, width, height);
     }
 
     @Override
     public void onDrawFrame(GL10 gl) {
-        //3-Render frame
-        renderFrame();
+        //3-render frame
+        if (this.surfaceTexture != null) {
+            this.surfaceTexture.updateTexImage();
+            renderFrame();
+        }
     }
 
 //==================================================================================================
 
-    private void setShowMatrix(float[] matrix, int imgW, int imgH, int viewW, int viewH) {
-        if (imgW > 0 && imgH > 0 && viewW > 0 && viewH > 0) {
-            float whImg = 1.0f * imgW / imgH;
-            float whPreview = 1.0f * viewW / viewH;
-            float[] projection = new float[16];
-            if (whImg > whPreview) {
-                Matrix.orthoM(projection, 0, -whPreview / whImg, whPreview / whImg, -1, 1, 1, 3);
-            } else {
-                Matrix.orthoM(projection, 0, -1, 1, -whImg / whPreview, whImg / whPreview, 1, 3);
+    private String getShader(AssetManager assets, String fileName) {
+        if (assets == null || TextUtils.isEmpty(fileName)) return null;
+        StringBuilder content = new StringBuilder();
+        InputStream is = null;
+        try {
+            int ch;
+            byte[] buffer = new byte[1024];
+            is = assets.open(fileName);
+            while (-1 != (ch = is.read(buffer))) {
+                content.append(new String(buffer, 0, ch));
             }
-            float[] camera = new float[16];
-            Matrix.setLookAtM(camera, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0);
-            Matrix.multiplyMM(matrix, 0, projection, 0, camera, 0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            content.delete(0,content.length());
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
+        return content.toString();
     }
 
     private int loadShader(int shaderType, String shaderSource) {
-        int shader = GLES31.glCreateShader(shaderType);
-        if (shader > GLES31.GL_NONE) {
-            GLES31.glShaderSource(shader, shaderSource);
-            GLES31.glCompileShader(shader);
+        int shader = GLES20.glCreateShader(shaderType);
+        if (shader > GLES20.GL_NONE) {
+            GLES20.glShaderSource(shader, shaderSource);
+            GLES20.glCompileShader(shader);
             int[] compiled = new int[1];
-            GLES31.glGetShaderiv(shader, GLES31.GL_COMPILE_STATUS, compiled, 0);
-            if (compiled[0] == GLES31.GL_FALSE) {
-                Log.e(TAG, "GLES31 Error: " + GLES31.glGetShaderInfoLog(shader));
-                GLES31.glDeleteShader(shader);
-                shader = GLES31.GL_NONE;
+            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0);
+            if (compiled[0] == GLES20.GL_FALSE) {
+                Log.e(TAG, "GLES20 Error: " + GLES20.glGetShaderInfoLog(shader));
+                GLES20.glDeleteShader(shader);
+                shader = GLES20.GL_NONE;
             }
         }
         return shader;
     }
 
     private void checkGlError(String action) {
-        int error = GLES31.glGetError();
-        if (GLES31.GL_NO_ERROR != error) {
+        int error = GLES20.glGetError();
+        if (GLES20.GL_NO_ERROR != error) {
             Log.e(TAG, action + " glError:" + error);
         }
     }
 
     private void createGlCondition() {
+        AssetManager assets = glSurfaceView.getContext().getResources().getAssets();
         //1.1-加载shader
-        int vertexId = loadShader(GLES31.GL_VERTEX_SHADER, SHADER_VERTEX);
+        String shaderVertex = getShader(assets,"beauty_vertex.glsl");
+        int vertexId = loadShader(GLES20.GL_VERTEX_SHADER, shaderVertex);
         checkGlError("loadShaderVertex");
-        if (GLES31.GL_NONE == vertexId) return;
-        int fragmentId = loadShader(GLES31.GL_FRAGMENT_SHADER, SHADER_FRAGMENT);
+        if (GLES20.GL_NONE == vertexId) return;
+        String shaderFragment = getShader(assets,"beauty_fragment.glsl");
+        int fragmentId = loadShader(GLES20.GL_FRAGMENT_SHADER, shaderFragment);
         checkGlError("loadShaderFragment");
-        if (GLES31.GL_NONE == fragmentId) return;
+        if (GLES20.GL_NONE == fragmentId) return;
         //1.2-创建program
-        program = GLES31.glCreateProgram();
+        program = GLES20.glCreateProgram();
         checkGlError("glCreateProgram");
-        if (GLES31.GL_NONE == program) return;
+        if (GLES20.GL_NONE == program) return;
         //1.3-添加program和shader
-        GLES31.glAttachShader(program, vertexId);
+        GLES20.glAttachShader(program, vertexId);
         checkGlError("glAttachShaderVertex");
-        GLES31.glAttachShader(program, fragmentId);
+        GLES20.glAttachShader(program, fragmentId);
         checkGlError("glAttachShaderFragment");
         //1.4-release
-        GLES31.glDeleteShader(vertexId);
+        GLES20.glDeleteShader(vertexId);
         checkGlError("glDeleteShaderVertex");
-        GLES31.glDeleteShader(fragmentId);
+        GLES20.glDeleteShader(fragmentId);
         checkGlError("glDeleteShaderFragment");
         //1.5-link program
-        GLES31.glLinkProgram(program);
+        GLES20.glLinkProgram(program);
         checkGlError("glLinkProgram");
         //1.6-checkLink
         int[] linkStatus = new int[1];
-        GLES31.glGetProgramiv(program, GLES31.GL_LINK_STATUS, linkStatus, 0);
-        if (linkStatus[0] == GLES31.GL_FALSE) {
-            Log.e(TAG, "GLES31 Error: glLinkProgram");
-            Log.e(TAG, GLES31.glGetProgramInfoLog(program));
-            GLES31.glDeleteProgram(program);
-            program = GLES31.GL_NONE;
+        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0);
+        if (linkStatus[0] == GLES20.GL_FALSE) {
+            Log.e(TAG, "GLES20 Error: glLinkProgram");
+            Log.e(TAG, GLES20.glGetProgramInfoLog(program));
+            GLES20.glDeleteProgram(program);
+            program = GLES20.GL_NONE;
             return;
         }
         //1.7-获取属性位置值
-        vMatrix = GLES31.glGetUniformLocation(program, "vMatrix");
-        texUniLocation[0] = GLES31.glGetUniformLocation(program, "vTexture");
+        vPosition = GLES20.glGetAttribLocation(program, "vPosition");
+        vTexCoord = GLES20.glGetAttribLocation(program, "vTexCoord");
+        vTexture = GLES20.glGetUniformLocation(program, "vTexture");
         //1.8-创建纹理
-        createTexture();
+        GLES20.glGenTextures(1, textures, 0);
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textures[0]);
+        GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_MIN_FILTER, GL10.GL_LINEAR);
+        GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_MAG_FILTER, GL10.GL_LINEAR);
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_S, GL10.GL_CLAMP_TO_EDGE);
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_T, GL10.GL_CLAMP_TO_EDGE);
         checkGlError("createTexture");
-        //1.9-创建双PBO
-        GLES31.glGenBuffers(pbo.length, pbo, 0);
-        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pbo[0]);
-        GLES31.glBufferData(GLES31.GL_PIXEL_UNPACK_BUFFER, frameSize, null, GLES31.GL_STREAM_DRAW);
-        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pbo[1]);
-        GLES31.glBufferData(GLES31.GL_PIXEL_UNPACK_BUFFER, frameSize, null, GLES31.GL_STREAM_DRAW);
-        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, GLES31.GL_NONE);
-    }
-
-    private void createTexture() {
-        //生成纹理
-        GLES31.glGenTextures(textures.length, textures, 0);
-        //绑定vTexture
-        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, textures[0]);
-        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_WRAP_S, GLES31.GL_REPEAT);
-        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_WRAP_T, GLES31.GL_REPEAT);
-        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_MIN_FILTER, GLES31.GL_LINEAR);
-        GLES31.glTexParameteri(GLES31.GL_TEXTURE_2D, GLES31.GL_TEXTURE_MAG_FILTER, GLES31.GL_LINEAR);
-        GLES31.glTexImage2D(GLES31.GL_TEXTURE_2D, 0, GLES31.GL_RGB, frameW, frameH,
-                0, GLES31.GL_RGB, GLES31.GL_UNSIGNED_BYTE, null);
+        //1.9-创建surfaceTexture
+        this.surfaceTexture = new SurfaceTexture(textures[0]);
+        this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
     }
 
     private synchronized void renderFrame() {
-        if (program == 0 || frame == null) return;
-        long start = System.currentTimeMillis();
-
         //3.1-清空画布
-        GLES31.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT);
-        //3.2-使用program
-        GLES31.glUseProgram(program);
-        //3.3-设置渲染的坐标
-        GLES31.glUniformMatrix4fv(vMatrix, 1, false, matrix, 0);
-
-        //3.4-PBO
-        GLES31.glActiveTexture(GLES31.GL_TEXTURE0);
-        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, textures[0]);
-        GLES31.glUniform1i(texUniLocation[0], 0);
-        index = (index + 1) % 2;
-        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pbo[index]);
-        GLES31.glTexImage2D(GLES31.GL_TEXTURE_2D, 0, GLES31.GL_RGB, frameW, frameH,
-                0, GLES31.GL_RGB, GLES31.GL_UNSIGNED_BYTE, null);
-        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, pbo[(index + 1) % 2]);
-        GLES31.glBufferData(GLES31.GL_PIXEL_UNPACK_BUFFER, frameSize, null, GLES31.GL_STREAM_DRAW);
-        ByteBuffer buffer = (ByteBuffer) GLES31.glMapBufferRange(GLES31.GL_PIXEL_UNPACK_BUFFER,
-                0, frameSize, GLES31.GL_MAP_WRITE_BIT | GLES31.GL_MAP_INVALIDATE_BUFFER_BIT);
-        if (buffer != null) {
-            buffer.put(frame);
-            GLES31.glUnmapBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER);
-        } else {
-            checkGlError("glMapBufferRange");
-        }
-        GLES31.glBindBuffer(GLES31.GL_PIXEL_UNPACK_BUFFER, GLES31.GL_NONE);
-
-        //3.5-设置渲染的坐标
-        GLES31.glEnableVertexAttribArray(vPosition);
-        GLES31.glVertexAttribPointer(vPosition, 2, GLES31.GL_FLOAT, false, 8, vertexBuffer);
-        GLES31.glEnableVertexAttribArray(vTexCoord);
-        GLES31.glVertexAttribPointer(vTexCoord, 2, GLES31.GL_FLOAT, false, 8, textureBuffer);
-
-        //3.6-绘制
-        GLES31.glDrawArrays(GLES31.GL_TRIANGLE_STRIP, 0, 4);
-        //3.7-禁用顶点属性数组
-        frame = null;
-        GLES31.glDisableVertexAttribArray(vPosition);
-        GLES31.glDisableVertexAttribArray(vTexCoord);
-        //3.8-解绑
-        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, GLES31.GL_NONE);
-        //Log.d(TAG, "renderTime=" + (System.currentTimeMillis() - start));
+        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        //3.2-使用句柄
+        GLES20.glUseProgram(program);
+        //3.3-绑定默认纹理
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textures[0]);
+        GLES20.glUniform1i(vTexture, 0);
+        //3.4-启用顶点坐标和纹理坐标进行绘制
+        GLES20.glEnableVertexAttribArray(vPosition);
+        GLES20.glVertexAttribPointer(vPosition, 2, GLES20.GL_FLOAT, false, 8, vertexBuffer);
+        GLES20.glEnableVertexAttribArray(vTexCoord);
+        GLES20.glVertexAttribPointer(vTexCoord, 2, GLES20.GL_FLOAT, false, 8, textureBuffer);
+        //3.5-绘制
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+        //3.6-禁用顶点属性数组
+        GLES20.glDisableVertexAttribArray(vPosition);
+        GLES20.glDisableVertexAttribArray(vTexCoord);
+        //3.7-解绑
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_NONE);
     }
 
 }

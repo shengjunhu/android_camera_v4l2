@@ -1,6 +1,9 @@
 package com.hsj.sample;
 
 import android.os.Bundle;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -35,6 +38,7 @@ public final class MainActivity extends AppCompatActivity {
     private CameraAPI cameraRGB, cameraIR;
     //IRender
     private IRender renderRGB;
+    Surface surface;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,9 +48,28 @@ public final class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_start).setOnClickListener(v->start());
         findViewById(R.id.btn_stop).setOnClickListener(v->stop());
         findViewById(R.id.btn_destroy).setOnClickListener(v->destroy());
+
         //RGB
         CameraView cameraView = findViewById(R.id.preview);
         renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.RGB);
+
+        /*SurfaceView preview = findViewById(R.id.preview);
+        preview.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                surface = holder.getSurface();
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+
+            }
+        });*/
     }
 
     @Override
@@ -98,6 +121,7 @@ public final class MainActivity extends AppCompatActivity {
             showToast("please open camera rgb");
         } else {
             this.cameraRGB.setFrameSize(RGB_WIDTH, RGB_HEIGHT, CameraAPI.PIXEL_FORMAT_MJPEG);
+            this.cameraRGB.setPreview(renderRGB.getSurface());
             this.cameraRGB.setFrameCallback(rgbCallback);
             this.cameraRGB.start();
         }
