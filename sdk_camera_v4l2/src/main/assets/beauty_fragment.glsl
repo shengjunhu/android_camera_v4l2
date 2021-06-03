@@ -88,7 +88,7 @@ void main() {
     smoothColor = mix(centralColor, smoothColor, pow(centralColor.g, mixCoef));
     // 亮度值大->润红效果, 颜色值小->白皙效果
     //gl_FragColor = vec4(pow(smoothColor, vec3(0.96)), 1.0);
-    gl_FragColor = vec4(pow(smoothColor, vec3(0.66)), 1.0);
+    gl_FragColor = vec4(pow(smoothColor, vec3(0.56)), 1.0);
     vec3 satcolor = gl_FragColor.rgb * saturateMatrix;
     gl_FragColor.rgb = mix(gl_FragColor.rgb, satcolor, 0.23);
 }

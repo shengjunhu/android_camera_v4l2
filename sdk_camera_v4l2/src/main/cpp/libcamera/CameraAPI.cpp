@@ -32,7 +32,7 @@ CameraAPI::CameraAPI() :
         preview(NULL),
         decoder(NULL),
         buffers(NULL),
-        outBuffer(NULL),
+        out_buffer(NULL),
         deviceName(NULL),
         frameCallback(NULL),
         frameCallback_onFrame(NULL) {
@@ -132,25 +132,21 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
         } else if (camera->frameFormat == 0) {
             //LOGD(TAG, "yuyv interval time = %lld", timeMs() - time0)
             //time0 = timeMs();
-            memcpy(outBuffer, camera->buffers[buffer.index].start, buffer.length);
+            memcpy(out_buffer, camera->buffers[buffer.index].start, buffer.length);
             //Render
-            renderFrame(outBuffer);
+            renderFrame(out_buffer);
             //YUYV->Java
-            sendFrame(env, outBuffer);
+            sendFrame(env, out_buffer);
         } else {
             //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
             //time1 = timeMs();
 
             //MJPEG->NV12/RGB24
-            //u_int64_t start = timeMs();
             uint8_t *out = camera->decoder->convert(camera->buffers[buffer.index].start,buffer.bytesused);
-            //LOGD(TAG, "decodeTime=%lld", timeMs() - start)
-            //LOGD(TAG, "mjpeg2rgbTime=%lld", timeMs() - time1)
+            //LOGD(TAG, "decodeTime=%lld", timeMs() - time1)
 
             //Render
-            //u_int64_t start = timeMs();
             renderFrame(out);
-            //LOGD(TAG, "renderTime=%lld", timeMs() - start)
 
             //RGB24->Java
             sendFrame(env, out);
@@ -171,7 +167,9 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
 }
 
 void CameraAPI::renderFrame(uint8_t *data){
+    //u_int64_t start = timeMs();
     if (preview && data) preview->render(data);
+    //LOGD(TAG, "renderTime=%lld", timeMs() - start)
 }
 
 void CameraAPI::sendFrame(JNIEnv *env, uint8_t *data) {
@@ -296,17 +294,17 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
             return ACTION_ERROR_SET_W_H;
         } else {
             if (frame_format == 0) {
-                SAFE_FREE(outBuffer)
+                SAFE_FREE(out_buffer)
                 pixelBytes = width * height * 2;
-                outBuffer = (uint8_t *) calloc(1, pixelBytes);
+                out_buffer = (uint8_t *) calloc(1, pixelBytes);
                 if (decoder) {
                     decoder->destroy();
                     SAFE_DELETE(decoder)
                 }
             } else {
-                SAFE_FREE(outBuffer)
+                SAFE_FREE(out_buffer)
                 pixelBytes = width * height * 3;
-                outBuffer = (uint8_t *) calloc(1, pixelBytes);
+                out_buffer = (uint8_t *) calloc(1, pixelBytes);
                 if (decoder == nullptr) {
                     decoder = new DecodeCreator(width,height);
                 }
@@ -480,7 +478,7 @@ ActionInfo CameraAPI::close() {
         }
         //3-release buffer
         SAFE_FREE(buffers)
-        SAFE_FREE(outBuffer)
+        SAFE_FREE(out_buffer)
         //4-release frameCallback
         JNIEnv *env = getEnv();
         if (env && !frameCallback_onFrame) {
@@ -506,7 +504,7 @@ ActionInfo CameraAPI::destroy() {
     frameCallback = NULL;
     frameCallback_onFrame = NULL;
     SAFE_FREE(buffers)
-    SAFE_FREE(outBuffer)
+    SAFE_FREE(out_buffer)
     SAFE_DELETE(decoder)
     SAFE_DELETE(deviceName)
     return ACTION_SUCCESS;

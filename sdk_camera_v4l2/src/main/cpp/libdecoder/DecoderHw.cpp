@@ -52,10 +52,8 @@ bool DecoderHw::start() {
 //6.5ms
 uint8_t *DecoderHw::convertRGB(uint8_t *nv12) {
     if (LIKELY(nv12)) {
-        uint64_t start = timeMs();
         libyuv::NV12ToRAW(nv12, width,nv12 + frameWH, width,
                           out_buffer, width * 3, width, height);
-        LOGD(TAG,"convertRGB=%lld",timeMs()-start)
         return out_buffer;
     } else {
         return NULL;

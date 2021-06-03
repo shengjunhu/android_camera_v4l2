@@ -31,7 +31,7 @@ private:
     int frameFormat;
 
     size_t pixelBytes;
-    uint8_t *outBuffer;
+    uint8_t *out_buffer;
     VideoBuffer *buffers;
     DecodeCreator *decoder;
 
