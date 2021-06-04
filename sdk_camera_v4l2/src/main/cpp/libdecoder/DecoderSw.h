@@ -2,13 +2,13 @@
 // Created by Hsj on 2021/5/24.
 //
 
-#ifndef ANDROID_CAMERA_V4L2_DECODERJP_H
-#define ANDROID_CAMERA_V4L2_DECODERJP_H
+#ifndef ANDROID_CAMERA_V4L2_DECODERSW_H
+#define ANDROID_CAMERA_V4L2_DECODERSW_H
 
 #include <turbojpeg.h>
 #include "IDecoder.h"
 
-class DecoderJp : public IDecoder {
+class DecoderSw : public IDecoder {
 private:
     int _flags;
     int _width;
@@ -18,7 +18,7 @@ private:
     tjhandle handle = NULL;
     unsigned char *out_buffer = NULL;
 public:
-    CONSTRUCT_CLASS(DecoderJp);
+    CONSTRUCT_CLASS(DecoderSw);
     virtual bool create();
     virtual bool start();
     virtual uint8_t *convert(void *raw_buffer, unsigned long raw_size);
@@ -26,4 +26,4 @@ public:
     virtual void destroy();
 };
 
-#endif //ANDROID_CAMERA_V4L2_DECODERJP_H
+#endif //ANDROID_CAMERA_V4L2_DECODERSW_H

@@ -3,7 +3,7 @@
 //
 
 #include "DecoderHw.h"
-#include "DecoderJp.h"
+#include "DecoderSw.h"
 #include "DecodeCreator.h"
 
 #define TAG "DecodeCreator"
@@ -23,7 +23,7 @@ DecodeCreator::DecodeCreator(int frameW, int frameH) : decoder(NULL) {
             decoder->destroy();
             SAFE_DELETE(decoder)
             type = DECODE_SW;
-            decoder = CREATE_CLASS(DecoderJp);
+            decoder = CREATE_CLASS(DecoderSw);
             decoder->width = frameW;
             decoder->height = frameH;
             decoder->create();
@@ -39,9 +39,9 @@ DecodeCreator::~DecodeCreator() {
 PixelFormat DecodeCreator::getPixelFormat() {
     switch (type){
         case DECODE_HW:
-            return PIXEL_FORMAT_RGB;
+            return PIXEL_FORMAT_NV12;
         case DECODE_SW:
-            return PIXEL_FORMAT_RGB;
+            return PIXEL_FORMAT_YUV422;
         case DECODE_UNKNOWN:
         default:
             return PIXEL_FORMAT_ERROR;

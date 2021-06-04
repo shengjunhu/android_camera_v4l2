@@ -43,16 +43,6 @@
 #define SAFE_FREE(x) {if(x != NULL){free(x); x = NULL;}}
 #define SAFE_DELETE(p) {if (p) { delete (p); (p) = NULL;}}
 
-typedef enum {
-    PIXEL_FORMAT_RGB   = 0,
-    PIXEL_FORMAT_RGBA  = 1,
-    PIXEL_FORMAT_NV12  = 2,
-    PIXEL_FORMAT_YUYV  = 3,
-    PIXEL_FORMAT_GRAY  = 4,
-    PIXEL_FORMAT_DEPTH = 5,
-    PIXEL_FORMAT_ERROR = 6,
-} PixelFormat;
-
 void setVM(JavaVM *);
 JavaVM *getVM();
 JNIEnv *getEnv();

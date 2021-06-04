@@ -141,22 +141,22 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
             //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
             //time1 = timeMs();
 
-            //MJPEG->NV12/RGB24
-            uint8_t *out = camera->decoder->convert(camera->buffers[buffer.index].start,buffer.bytesused);
+            //MJPEG->NV12/YUV422
+            uint8_t *data = camera->decoder->convert(camera->buffers[buffer.index].start,buffer.bytesused);
             //LOGD(TAG, "decodeTime=%lld", timeMs() - time1)
 
             //Render
-            renderFrame(out);
+            renderFrame(data);
 
-            //RGB24->Java
-            sendFrame(env, out);
+            //Data->Java
+            sendFrame(env, data);
 
-            //Save->RGB24
-            /*FILE *fp = fopen("/sdcard/rgb_1280x800.bmp", "wb");
+            //Data->Save
+            /*FILE *fp = fopen("/sdcard/1280x800.yuv", "wb");
             if (fp) {
-               fwrite(out, 1,  pixelBytes,fp);
+               fwrite(out, 1, pixelBytes,fp);
                fclose(fp);
-               LOGD(TAG,"Capture one frame saved in /sdcard/rgb_1280x800.bmp");
+               LOGD(TAG,"Capture one frame saved in /sdcard/1280x800.yuv");
             }*/
         }
         if (0 > ioctl(camera->fd, VIDIOC_QBUF, &buffer)) {
@@ -168,7 +168,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
 
 void CameraAPI::renderFrame(uint8_t *data){
     //u_int64_t start = timeMs();
-    if (preview && data) preview->render(data);
+    if (preview != NULL && LIKELY(data)) preview->render(data);
     //LOGD(TAG, "renderTime=%lld", timeMs() - start)
 }
 
@@ -284,7 +284,7 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         format.fmt.pix.width = width;
         format.fmt.pix.height = height;
         format.fmt.pix.field = V4L2_FIELD_ANY;
-        if (frame_format == 0) {
+        if (frame_format == FRAME_FORMAT_YUYV) {
             format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
         } else {
             format.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
@@ -293,21 +293,29 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
             LOGW(TAG, "setFrameSize: ioctl set format failed, %s", strerror(errno))
             return ACTION_ERROR_SET_W_H;
         } else {
-            if (frame_format == 0) {
-                SAFE_FREE(out_buffer)
-                pixelBytes = width * height * 2;
-                out_buffer = (uint8_t *) calloc(1, pixelBytes);
-                if (decoder) {
+            if (frame_format == FRAME_FORMAT_YUYV) {
+                if (decoder != NULL) {
                     decoder->destroy();
                     SAFE_DELETE(decoder)
                 }
-            } else {
                 SAFE_FREE(out_buffer)
-                pixelBytes = width * height * 3;
+                pixelBytes = width * height * 2;
                 out_buffer = (uint8_t *) calloc(1, pixelBytes);
-                if (decoder == nullptr) {
-                    decoder = new DecodeCreator(width,height);
+            } else {
+                if (decoder == NULL) {
+                    decoder = new DecodeCreator(width, height);
                 }
+                SAFE_FREE(out_buffer)
+                PixelFormat pixelFormat = decoder->getPixelFormat();
+                if (pixelFormat == PIXEL_FORMAT_NV12){
+                    pixelBytes = width * height * 3 / 2;
+                } else if (pixelFormat == PIXEL_FORMAT_YUV422){
+                    pixelBytes = width * height * 2;
+                } else {
+                    LOGE(TAG, "PixelFormat is error: %d", pixelFormat)
+                    return ACTION_ERROR_DECODER;
+                }
+                out_buffer = (uint8_t *) calloc(1, pixelBytes);
             }
         }
 

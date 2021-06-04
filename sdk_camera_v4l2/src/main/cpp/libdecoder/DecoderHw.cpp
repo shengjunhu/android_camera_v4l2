@@ -4,7 +4,6 @@
 
 #include <cstring>
 #include <cstdlib>
-#include <libyuv.h>
 #include "DecoderHw.h"
 
 #define TAG "DecoderHw"
@@ -46,17 +45,6 @@ bool DecoderHw::start() {
     } else {
         LOGE(TAG, "start failure")
         return false;
-    }
-}
-
-//6.5ms
-uint8_t *DecoderHw::convertRGB(uint8_t *nv12) {
-    if (LIKELY(nv12)) {
-        libyuv::NV12ToRAW(nv12, width,nv12 + frameWH, width,
-                          out_buffer, width * 3, width, height);
-        return out_buffer;
-    } else {
-        return NULL;
     }
 }
 
@@ -103,8 +91,7 @@ uint8_t *DecoderHw::convert(void *raw_buffer, unsigned long raw_size) {
             LOGW(TAG, "Unexpected info code: %zd", out_buffer_id)
         }
     }
-    //3.8-return
-    return convertRGB(out_buffer);
+    return out_buffer;
 }
 
 bool DecoderHw::stop() {

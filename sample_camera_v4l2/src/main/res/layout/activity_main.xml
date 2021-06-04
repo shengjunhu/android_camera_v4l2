@@ -11,7 +11,7 @@
         android:layout_height="1280px"
         android:layout_centerInParent="true" />
 
-   <!-- <SurfaceView
+    <!--<SurfaceView
         android:id="@+id/preview"
         android:layout_width="640px"
         android:layout_height="400px"

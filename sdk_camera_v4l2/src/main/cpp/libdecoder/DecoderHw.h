@@ -13,7 +13,6 @@ private:
     unsigned int frameWH = 0;
     uint8_t *out_buffer = NULL;
     AMediaCodec* mediaCodec = NULL;
-    uint8_t* convertRGB(uint8_t *nv12);
 public:
     CONSTRUCT_CLASS(DecoderHw);
     virtual bool create();

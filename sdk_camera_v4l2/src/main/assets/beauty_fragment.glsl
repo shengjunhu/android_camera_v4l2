@@ -7,12 +7,12 @@ varying vec2 texCoord;
 varying highp vec2 blurCoord1s[14];
 //外部纹理
 uniform samplerExternalOES vTexture;
-//uniform int iternum;//参数
-//uniform float aaCoef;//参数
+//uniform int iternum;//采样次数
+//uniform float aaCoef;//强度系数
 //uniform float mixCoef;//混合系数
-//迭代次数
+//采样次数
 const int iternum = 3;
-//亮度系数
+//强度系数
 const float aaCoef = 0.17;
 //混合系数
 const float mixCoef = 0.39;

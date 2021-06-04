@@ -7,10 +7,19 @@
 
 #include "IDecoder.h"
 
+typedef enum {
+    PIXEL_FORMAT_NV12   = 1, //yvu
+    PIXEL_FORMAT_YUV422 = 2, //uyvy
+    PIXEL_FORMAT_YUYV   = 3,
+    PIXEL_FORMAT_GRAY   = 4,
+    PIXEL_FORMAT_DEPTH  = 5,
+    PIXEL_FORMAT_ERROR  = 0,
+} PixelFormat;
+
 typedef enum DecodeType {
+    DECODE_HW      = 1,
+    DECODE_SW      = 2,
     DECODE_UNKNOWN = 0,
-    DECODE_HW = 1,
-    DECODE_SW = 2,
 } decodeType;
 
 class DecodeCreator {

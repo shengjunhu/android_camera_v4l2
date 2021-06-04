@@ -28,10 +28,11 @@ typedef struct {
 } YUYV;
 
 typedef struct {
-    uint8_t y;
-    uint8_t v;
     uint8_t u;
-} NV12;
+    uint8_t y1;
+    uint8_t v;
+    uint8_t y2;
+} YUV422;
 
 static void YUVtoRGB888(XnUInt8 y, XnUInt8 u, XnUInt8 v, XnUInt8 &r, XnUInt8 &g, XnUInt8 &b) {
     XnInt32 nC = y - 16;
@@ -52,25 +53,16 @@ CameraView::CameraView(int pixelWidth, int pixelHeight,
         pixelHeight(pixelHeight),
         pixelFormat(pixelFormat),
         lineSize(pixelWidth * 4) {
-    if (pixelFormat == PIXEL_FORMAT_RGB) {
+    if (pixelFormat == PIXEL_FORMAT_YUYV) {
         lineSize = pixelWidth * 4;
-        pixelStride = pixelWidth * 3;
-        pixelSize = pixelWidth * pixelHeight * 3;
-    } else if (pixelFormat == PIXEL_FORMAT_NV12) {
-        pixelStride = pixelWidth;
-        pixelSize = pixelWidth * pixelHeight * 3 / 2;
-    } else if (pixelFormat == PIXEL_FORMAT_YUYV) {
-        pixelStride = pixelWidth * 2;
-        pixelSize = pixelWidth * pixelHeight * 2;
+        pixelStride = pixelWidth * 1;
     } else if (pixelFormat == PIXEL_FORMAT_GRAY) {
         pixelStride = pixelWidth * 2;
-        pixelSize = pixelWidth * pixelHeight * 2;
     } else if (pixelFormat == PIXEL_FORMAT_DEPTH) {
         pixelStride = pixelWidth * 2;
-        pixelSize = pixelWidth * pixelHeight * 2;
-    } else { //Default RGBA
-        pixelStride = pixelWidth * 4;
+    } else {
         pixelSize = pixelWidth * pixelHeight * 4;
+        convert = new YUVConvert(pixelWidth, pixelHeight, pixelFormat);
     }
     ANativeWindow_setBuffersGeometry(window, pixelWidth, pixelHeight, WINDOW_FORMAT_RGBA_8888);
 }
@@ -85,19 +77,20 @@ void CameraView::destroy() {
     pixelWidth = 0;
     pixelHeight = 0;
     pixelFormat = 0;
+    if (convert) {
+        convert->destroy();
+        SAFE_DELETE(convert)
+    }
     if (window) ANativeWindow_release(window);
 }
 
 void CameraView::render(uint8_t *data) {
     switch (pixelFormat) {
-        case PIXEL_FORMAT_RGB:
-            renderRGB(data);
-            break;
-        case PIXEL_FORMAT_RGBA:
-            renderRGBA(data);
-            break;
         case PIXEL_FORMAT_NV12:
             renderNV12(data);
+            break;
+        case PIXEL_FORMAT_YUV422:
+            renderYUV422(data);
             break;
         case PIXEL_FORMAT_YUYV:
             renderYUYV(data);
@@ -110,64 +103,42 @@ void CameraView::render(uint8_t *data) {
             break;
         case PIXEL_FORMAT_ERROR:
         default:
-            LOGE(TAG, "error format: %d", pixelFormat)
+            LOGE(TAG, "Render pixelFormat is error: %d", pixelFormat)
             break;
     }
 }
 
-void CameraView::renderRGB(const uint8_t *data) {
-    ANativeWindow_Buffer buffer;
-    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        auto *dest = (uint8_t *) buffer.bits;
-        for (int h = 0; h < pixelHeight; ++h) {
-            uint8_t *texture = dest + h * lineSize;
-            auto *rgb = (RGB888 *) (data + h * pixelStride);
-            for (int w = 0; w < pixelWidth; ++w, ++rgb, texture += 4) {
-                texture[0] = rgb->r;
-                texture[1] = rgb->g;
-                texture[2] = rgb->b;
-                texture[3] = 0xff;
-            }
-        }
-        ANativeWindow_unlockAndPost(window);
-    }
-}
-
-void CameraView::renderRGBA(const uint8_t *data) {
-    ANativeWindow_Buffer buffer;
-    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        memcpy(buffer.bits, data, pixelSize);
-        ANativeWindow_unlockAndPost(window);
-    }
-}
-
 void CameraView::renderNV12(const uint8_t *data) {
+    unsigned char *rgba = convert->convertNV12(data);
     ANativeWindow_Buffer buffer;
     if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        long size = pixelWidth * pixelHeight;
-        const uint8_t *y = data + size;
-        const uint8_t *vu = y + size / 2;
-        auto *dest = (uint8_t *) buffer.bits;
-        for (int h = 0; h < pixelHeight; ++h) {
-            uint8_t *texture = dest + h * lineSize;
-            const auto *nv12 = (const NV12 *) (y + h * pixelStride);
-            for (int w = 0; w < pixelWidth; ++w, ++nv12, texture += 4) {
-                // YUVtoRGB888(yuyv->y1, yuyv->u, yuyv->v, texture[0], texture[1],texture[2]);
-                texture[3] = 0xff;
-            }
-        }
+        //5~6ms
+        memcpy(buffer.bits, rgba, pixelSize);
+        //2~3ms
+        ANativeWindow_unlockAndPost(window);
+    }
+}
+
+void CameraView::renderYUV422(const uint8_t *data) {
+    unsigned char *rgba = convert->convertYUV422(data);
+    ANativeWindow_Buffer buffer;
+    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
+        //5~6ms
+        memcpy(buffer.bits, rgba, pixelSize);
+        //2~3ms
         ANativeWindow_unlockAndPost(window);
     }
 }
 
 void CameraView::renderYUYV(const uint8_t *data) {
     ANativeWindow_Buffer buffer;
-    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
+    if (LIKELY(ANativeWindow_lock(window, &buffer, NULL) == 0)) {
+        int pixelWidth2 = pixelWidth / 2;
         auto *dest = (uint8_t *) buffer.bits;
         for (int h = 0; h < pixelHeight; ++h) {
             uint8_t *texture = dest + h * lineSize;
-            const auto *yuyv = (const YUYV *) (data + h * pixelStride);
-            for (int w = 0; w < pixelWidth / 2; ++w, ++yuyv, texture += 4) {
+            const auto *yuyv = (const YUV422 *) (data + h * pixelStride);
+            for (int w = 0; w < pixelWidth2; ++w, ++yuyv, texture += 4) {
                 YUVtoRGB888(yuyv->y1, yuyv->u, yuyv->v, texture[0], texture[1], texture[2]);
                 texture[3] = 0xff;
                 texture += 4;

@@ -10,13 +10,18 @@
 #include "CameraView.h"
 #include "DecodeCreator.h"
 
-enum StatusInfo {
+typedef enum {
     STATUS_READY    = 0,
     STATUS_CREATE   = 1,
     STATUS_PARAM    = 2,
     STATUS_OPEN     = 3,
     STATUS_START    = 4,
-};
+}StatusInfo;
+
+typedef enum {
+    FRAME_FORMAT_YUYV  = 0,
+    FRAME_FORMAT_MJPEG = 1,
+} FrameFormat;
 
 struct VideoBuffer {
     void *start;
