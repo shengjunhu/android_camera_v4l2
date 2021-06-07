@@ -50,10 +50,10 @@ public final class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_destroy).setOnClickListener(v->destroy());
 
         //RGB
-        CameraView cameraView = findViewById(R.id.preview);
-        renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.RGB);
+        //CameraView cameraView = findViewById(R.id.preview);
+        //renderRGB = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.RGB);
 
-        /*SurfaceView preview = findViewById(R.id.preview);
+        SurfaceView preview = findViewById(R.id.preview);
         preview.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
@@ -69,7 +69,7 @@ public final class MainActivity extends AppCompatActivity {
             public void surfaceDestroyed(SurfaceHolder holder) {
 
             }
-        });*/
+        });
     }
 
     @Override
@@ -121,7 +121,7 @@ public final class MainActivity extends AppCompatActivity {
             showToast("please open camera rgb");
         } else {
             this.cameraRGB.setFrameSize(RGB_WIDTH, RGB_HEIGHT, CameraAPI.FRAME_FORMAT_MJPEG);
-            this.cameraRGB.setPreview(renderRGB.getSurface());
+            //this.cameraRGB.setPreview(renderRGB.getSurface());
             this.cameraRGB.setFrameCallback(rgbCallback);
             this.cameraRGB.start();
         }
@@ -134,7 +134,7 @@ public final class MainActivity extends AppCompatActivity {
             //this.cameraIR.setAutoExposure(false);
             //625->5ms, 312->4ms, 156->3.0ms, 78->2.5ms, 39->1.8ms, 20->1.4ms, 10->1.0ms, 5->0.6ms, 2->0.20ms, 1->0.06ms
             //this.cameraIR.setExposureLevel(156);
-            //this.cameraIR.setPreview(surface);
+            this.cameraIR.setPreview(surface);
             this.cameraIR.start();
         }
     }

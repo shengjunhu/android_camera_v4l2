@@ -17,12 +17,13 @@ private:
     int pixel_height;
     int pixel_format;
     tjhandle handle;
-    unsigned char *out_buffer;
+    uint8_t *out_buffer1;
+    unsigned char *out_buffer2;
 public:
     YUVConvert(int pixelWidth, int pixelHeight, PixelFormat pixelFormat);
     ~YUVConvert();
-    unsigned char *convertNV12(const uint8_t *data);
-    unsigned char *convertYUV422(const uint8_t *data);
+    uint8_t* convertNV12(const uint8_t *data);
+    unsigned char* convertYUV422(const uint8_t *data);
     void destroy();
 };
 

@@ -23,9 +23,6 @@ bool DecoderHw::create() {
     AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_BIT_RATE, width * height);
     if (AMEDIA_OK == AMediaCodec_configure(mediaCodec, mediaFormat, NULL, NULL, 0)) {
         //AMediaFormat_delete(format);
-        SAFE_FREE(out_buffer)
-        frameWH = width * height;
-        out_buffer = (uint8_t *) calloc(1, frameWH * 3);
         LOGD(TAG, "create success")
         return true;
     } else {
@@ -48,8 +45,7 @@ bool DecoderHw::start() {
     }
 }
 
-uint8_t *DecoderHw::convert(void *raw_buffer, unsigned long raw_size) {
-    uint8_t *out_buffer = NULL;
+uint8_t* DecoderHw::convert(void *raw_buffer, unsigned long raw_size) {
     //3.1-get input buffer index on buffers
     ssize_t in_buffer_id = AMediaCodec_dequeueInputBuffer(mediaCodec, TIME_OUT_US);
     if (in_buffer_id < 0) {
@@ -69,9 +65,10 @@ uint8_t *DecoderHw::convert(void *raw_buffer, unsigned long raw_size) {
         ssize_t out_buffer_id = AMediaCodec_dequeueOutputBuffer(mediaCodec, &info, TIME_OUT_US);
         if (out_buffer_id >= 0) {
             //3.6-get output buffer by output buffer index
-            out_buffer = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
+            uint8_t* out = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
             //3.7-release output buffer by output buffer index
             AMediaCodec_releaseOutputBuffer(mediaCodec, out_buffer_id, false);
+            return out;
         } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
             LOGW(TAG, "media info output buffers changed")
         } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -91,7 +88,7 @@ uint8_t *DecoderHw::convert(void *raw_buffer, unsigned long raw_size) {
             LOGW(TAG, "Unexpected info code: %zd", out_buffer_id)
         }
     }
-    return out_buffer;
+    return NULL;
 }
 
 bool DecoderHw::stop() {
@@ -111,9 +108,7 @@ void DecoderHw::destroy() {
         AMediaCodec_delete(mediaCodec);
         mediaCodec = NULL;
     }
-    SAFE_FREE(out_buffer)
     width = 0;
     height = 0;
-    frameWH = 0;
     LOGD(TAG, "destroy success")
 }

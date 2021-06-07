@@ -3,23 +3,20 @@
 //
 
 #include <cstring>
+#include <malloc.h>
 #include "Common.h"
 #include "CameraView.h"
 
 #define TAG "CameraView"
+#define HIST_SIZE 0xFFFF
 #define XN_MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define XN_MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 typedef int XnInt32;
 typedef short XnInt16;
 typedef unsigned char XnUInt8;
-
-typedef struct {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-} RGB888;
-
+typedef uint16_t DepthPixel;
+typedef uint16_t Gray16Pixel;
 typedef struct {
     uint8_t y1;
     uint8_t u;
@@ -27,22 +24,7 @@ typedef struct {
     uint8_t v;
 } YUYV;
 
-typedef struct {
-    uint8_t u;
-    uint8_t y1;
-    uint8_t v;
-    uint8_t y2;
-} YUV422;
-
-static void YUVtoRGB888(XnUInt8 y, XnUInt8 u, XnUInt8 v, XnUInt8 &r, XnUInt8 &g, XnUInt8 &b) {
-    XnInt32 nC = y - 16;
-    XnInt16 nD = u - 128;
-    XnInt16 nE = v - 128;
-    nC = nC * 298 + 128;
-    r = (XnUInt8) XN_MIN(XN_MAX((nC + 409 * nE) >> 8, 0), 255);
-    g = (XnUInt8) XN_MIN(XN_MAX((nC - 100 * nD - 208 * nE) >> 8, 0), 255);
-    b = (XnUInt8) XN_MIN(XN_MAX((nC + 516 * nD) >> 8, 0), 255);
-}
+unsigned int *histogram;
 
 CameraView::CameraView(int pixelWidth, int pixelHeight,
         PixelFormat pixelFormat, ANativeWindow *window) :
@@ -55,11 +37,16 @@ CameraView::CameraView(int pixelWidth, int pixelHeight,
         lineSize(pixelWidth * 4) {
     if (pixelFormat == PIXEL_FORMAT_YUYV) {
         lineSize = pixelWidth * 4;
-        pixelStride = pixelWidth * 1;
-    } else if (pixelFormat == PIXEL_FORMAT_GRAY) {
         pixelStride = pixelWidth * 2;
+    } else if (pixelFormat == PIXEL_FORMAT_GRAY16) {
+        lineSize = pixelWidth * 4;
+        pixelStride = pixelWidth * 2;
+        pixelSize = pixelWidth * pixelHeight * 2;
     } else if (pixelFormat == PIXEL_FORMAT_DEPTH) {
+        lineSize = pixelWidth * 4;
         pixelStride = pixelWidth * 2;
+        pixelSize = pixelWidth * pixelHeight * 2;
+        histogram = (unsigned int *) malloc(HIST_SIZE * sizeof(unsigned int));
     } else {
         pixelSize = pixelWidth * pixelHeight * 4;
         convert = new YUVConvert(pixelWidth, pixelHeight, pixelFormat);
@@ -72,16 +59,17 @@ CameraView::~CameraView() {
 }
 
 void CameraView::destroy() {
+    if (window) ANativeWindow_release(window);
+    if (convert) {
+        convert->destroy();
+        SAFE_DELETE(convert)
+    }
+    SAFE_FREE(histogram)
     window = nullptr;
     pixelSize = 0;
     pixelWidth = 0;
     pixelHeight = 0;
     pixelFormat = 0;
-    if (convert) {
-        convert->destroy();
-        SAFE_DELETE(convert)
-    }
-    if (window) ANativeWindow_release(window);
 }
 
 void CameraView::render(uint8_t *data) {
@@ -95,8 +83,8 @@ void CameraView::render(uint8_t *data) {
         case PIXEL_FORMAT_YUYV:
             renderYUYV(data);
             break;
-        case PIXEL_FORMAT_GRAY:
-            renderGray(data);
+        case PIXEL_FORMAT_GRAY16:
+            renderGray16(data);
             break;
         case PIXEL_FORMAT_DEPTH:
             renderDepth(data);
@@ -108,37 +96,129 @@ void CameraView::render(uint8_t *data) {
     }
 }
 
+//==================================================================================================
+
+static void neon_memcpy(uint8_t *dst, uint8_t *src, size_t sz){
+    if (sz & 63) sz = (sz & -64) + 64;
+    asm volatile (
+    "NEONCopyPLD: \n"
+    " VLDM %[src]!,{d0-d7} \n"
+    " VSTM %[dst]!,{d0-d7} \n"
+    " SUBS %[sz],%[sz],#0x40 \n"
+    " BGT NEONCopyPLD \n"
+    : [dst]"+r"(dst), [src]"+r"(src), [sz]"+r"(sz) : : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "cc", "memory");
+}
+
+static void copyFrame(const uint8_t *src, uint8_t *dest, const int width, int height,
+                      const int src_stride, const int dest_stride) {
+    const int h8 = height % 8;
+    for (int i = 0; i < h8; i++) {
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+    }
+    for (int i = 0; i < height; i += 8) {
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+        memcpy(dest, src, width);
+        dest += dest_stride;
+        src += src_stride;
+    }
+}
+
+static void YUVtoRGB888(XnUInt8 y, XnUInt8 u, XnUInt8 v, XnUInt8 &r, XnUInt8 &g, XnUInt8 &b) {
+    XnInt32 nC = y - 16;
+    XnInt16 nD = u - 128;
+    XnInt16 nE = v - 128;
+    nC = nC * 298 + 128;
+    r = (XnUInt8) XN_MIN(XN_MAX((nC + 409 * nE) >> 8, 0), 0xff);
+    g = (XnUInt8) XN_MIN(XN_MAX((nC - 100 * nD - 208 * nE) >> 8, 0), 0xff);
+    b = (XnUInt8) XN_MIN(XN_MAX((nC + 516 * nD) >> 8, 0), 0xff);
+}
+
+static void calculateDepthHist(const DepthPixel *depth, const unsigned long size) {
+    unsigned int value = 0;
+    unsigned int index = 0;
+    unsigned int numberOfPoints = 0;
+    // Calculate the accumulative histogram
+    memset(histogram, 0, HIST_SIZE * sizeof(int));
+    for (int i = 0; i < size/sizeof(DepthPixel); ++i, ++depth) {
+        value = *depth;
+        if (value != 0) {
+            histogram[value]++;
+            numberOfPoints++;
+        }
+    }
+    for (index = 1; index < HIST_SIZE; index++) {
+        histogram[index] += histogram[index - 1];
+    }
+    if (numberOfPoints != 0) {
+        for (index = 1; index < HIST_SIZE; index++) {
+            histogram[index] = (unsigned int) (256 * (1.0f - ((float) histogram[index] / numberOfPoints)));
+        }
+    }
+}
+
+//==================================================================================================
+
+//10ms
 void CameraView::renderNV12(const uint8_t *data) {
-    unsigned char *rgba = convert->convertNV12(data);
+    uint8_t *rgba = convert->convertNV12(data);
     ANativeWindow_Buffer buffer;
     if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        //5~6ms
-        memcpy(buffer.bits, rgba, pixelSize);
-        //2~3ms
+        //6ms
+        uint64_t start = timeMs();
+        auto *dest = (uint8_t *) buffer.bits;
+        memcpy(dest, rgba, pixelSize);
+        //neon_memcpy(dest, rgba, pixelSize);
+        LOGD(TAG,"time=%lld", timeMs()-start)
+        //3ms
         ANativeWindow_unlockAndPost(window);
     }
 }
 
+//10ms
 void CameraView::renderYUV422(const uint8_t *data) {
     unsigned char *rgba = convert->convertYUV422(data);
     ANativeWindow_Buffer buffer;
     if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        //5~6ms
-        memcpy(buffer.bits, rgba, pixelSize);
-        //2~3ms
+        //6ms
+        auto *dest = (unsigned char *)buffer.bits;
+        memcpy(dest, rgba, pixelSize);
+        //3ms
         ANativeWindow_unlockAndPost(window);
     }
 }
 
+//20ms
 void CameraView::renderYUYV(const uint8_t *data) {
     ANativeWindow_Buffer buffer;
-    if (LIKELY(ANativeWindow_lock(window, &buffer, NULL) == 0)) {
+    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
         int pixelWidth2 = pixelWidth / 2;
         auto *dest = (uint8_t *) buffer.bits;
         for (int h = 0; h < pixelHeight; ++h) {
             uint8_t *texture = dest + h * lineSize;
-            const auto *yuyv = (const YUV422 *) (data + h * pixelStride);
-            for (int w = 0; w < pixelWidth2; ++w, ++yuyv, texture += 4) {
+            const auto *yuyv = (const YUYV *) (data + h * pixelStride);
+            for (int w = 0; w < pixelWidth2; ++w, ++yuyv) {
                 YUVtoRGB888(yuyv->y1, yuyv->u, yuyv->v, texture[0], texture[1], texture[2]);
                 texture[3] = 0xff;
                 texture += 4;
@@ -151,8 +231,54 @@ void CameraView::renderYUYV(const uint8_t *data) {
     }
 }
 
-void CameraView::renderGray(const uint8_t *data) {}
+//20ms
+void CameraView::renderGray16(const uint8_t *data) {
+    // 1-Find max gray value
+    int maxGray = 0;
+    size_t length = pixelSize / sizeof(Gray16Pixel);
+    const auto *_data = (const Gray16Pixel *) data;
+    for (int i = 0; i < length; ++i, ++_data) {
+        if (*_data > maxGray) {
+            maxGray = *_data;
+        }
+    }
+    // 2-Update texture
+    ANativeWindow_Buffer buffer;
+    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
+        auto *dest = (uint8_t *) buffer.bits;
+        for (int h = 0; h < pixelHeight; ++h) {
+            uint8_t *texture = dest + h * lineSize;
+            const auto *gray = (const Gray16Pixel *) (data + h * pixelStride);
+            for (int w = 0; w < pixelWidth; ++w, ++gray, texture += 4) {
+                texture[0] = texture[1] = texture[2] = 255.0 * (*gray) / maxGray;
+                texture[3] = 0xff;
+            }
+        }
+        ANativeWindow_unlockAndPost(window);
+    }
+}
 
-void CameraView::renderDepth(const uint8_t *data) {}
+//20ms
+void CameraView::renderDepth(const uint8_t *data) {
+    // 1-Calculate Depth
+    calculateDepthHist((const DepthPixel *)data, pixelSize);
+    // 2-Update texture
+    ANativeWindow_Buffer buffer;
+    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
+        auto *dest = (uint8_t *) buffer.bits;
+        for (int h = 0; h < pixelHeight; ++h) {
+            uint8_t *texture = dest + h * lineSize;
+            const auto *depth = (const DepthPixel *) (data + h * pixelStride);
+            for (int w = 0; w < pixelWidth; ++w, ++depth, texture += 4) {
+                unsigned int val = histogram[*depth];
+                texture[0] = val;
+                texture[1] = val;
+                texture[2] = val;
+                texture[3] = 0xff;
+            }
+        }
+        ANativeWindow_unlockAndPost(window);
+    }
+}
 
 

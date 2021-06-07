@@ -57,7 +57,7 @@ bool DecodeCreator::start() {
     }
 }
 
-uint8_t *DecodeCreator::convert(void *raw_buffer, unsigned long raw_size) {
+uint8_t* DecodeCreator::convert(void *raw_buffer, unsigned long raw_size) {
     if (LIKELY(decoder)) {
         return decoder->convert(raw_buffer, raw_size);
     } else {

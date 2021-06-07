@@ -11,7 +11,7 @@ typedef enum {
     PIXEL_FORMAT_NV12   = 1, //yvu
     PIXEL_FORMAT_YUV422 = 2, //uyvy
     PIXEL_FORMAT_YUYV   = 3,
-    PIXEL_FORMAT_GRAY   = 4,
+    PIXEL_FORMAT_GRAY16 = 4,
     PIXEL_FORMAT_DEPTH  = 5,
     PIXEL_FORMAT_ERROR  = 0,
 } PixelFormat;
@@ -31,7 +31,7 @@ public:
     ~DecodeCreator();
     PixelFormat getPixelFormat();
     bool start();
-    uint8_t *convert(void *raw_buffer, unsigned long raw_size);
+    uint8_t* convert(void *raw_buffer, unsigned long raw_size);
     bool stop();
     void destroy();
 };

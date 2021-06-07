@@ -10,8 +10,6 @@
 
 class DecoderHw: public IDecoder {
 private:
-    unsigned int frameWH = 0;
-    uint8_t *out_buffer = NULL;
     AMediaCodec* mediaCodec = NULL;
 public:
     CONSTRUCT_CLASS(DecoderHw);

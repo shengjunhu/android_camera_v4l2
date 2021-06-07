@@ -12,7 +12,8 @@ bool DecoderSw::create() {
     //1-Create decompress
     handle = tjInitDecompress();
     //2-Alloc out buffer memory: subSample = TJSAMP_422
-    out_buffer = tjAlloc(tjBufSizeYUV2(width, 4, height, TJSAMP_422));
+    size_t out_buffer_size = tjBufSizeYUV2(width, 4, height, TJSAMP_422);
+    out_buffer = tjAlloc(out_buffer_size);
     return true;
 }
 
@@ -22,13 +23,13 @@ bool DecoderSw::start() {
     return true;
 }
 
-uint8_t *DecoderSw::convert(void *raw_buffer, unsigned long raw_size) {
+uint8_t* DecoderSw::convert(void *raw_buffer, unsigned long raw_size) {
     auto *raw = (unsigned char *) raw_buffer;
     //4-Get raw_buffer info: subSample = TJSAMP_422
     tjDecompressHeader3(handle, raw, raw_size, &_width, &_height, &_subSample, &_colorSpace);
     //5-Decompress: to YUV422 22ms (flag = 0、TJFLAG_FASTDCT)
     tjDecompressToYUV2(handle, raw, raw_size, out_buffer, _width, 4, _height, _flags);
-    return out_buffer;
+    return (uint8_t *) out_buffer;
 }
 
 bool DecoderSw::stop() {
@@ -41,11 +42,11 @@ void DecoderSw::destroy() {
     //7-Destroy handle
     if (out_buffer) {
         tjFree(out_buffer);
-        out_buffer = NULL;
+        out_buffer = nullptr;
     }
     if (handle) {
         tjDestroy(handle);
-        handle = NULL;
+        handle = nullptr;
     }
     width = 0;
     height = 0;

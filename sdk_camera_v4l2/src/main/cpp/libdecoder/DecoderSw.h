@@ -21,7 +21,7 @@ public:
     CONSTRUCT_CLASS(DecoderSw);
     virtual bool create();
     virtual bool start();
-    virtual uint8_t *convert(void *raw_buffer, unsigned long raw_size);
+    virtual uint8_t* convert(void *raw_buffer, unsigned long raw_size);
     virtual bool stop();
     virtual void destroy();
 };

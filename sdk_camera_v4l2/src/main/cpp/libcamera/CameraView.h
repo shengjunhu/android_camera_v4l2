@@ -16,13 +16,13 @@ private:
     int pixelFormat;
     int pixelStride;
     int lineSize;
-    long pixelSize;
+    size_t pixelSize;
     YUVConvert *convert;
     ANativeWindow *window;
     void renderNV12(const uint8_t *data);
     void renderYUV422(const uint8_t *data);
     void renderYUYV(const uint8_t *data);
-    void renderGray(const uint8_t *data);
+    void renderGray16(const uint8_t *data);
     void renderDepth(const uint8_t *data);
 
 public:
