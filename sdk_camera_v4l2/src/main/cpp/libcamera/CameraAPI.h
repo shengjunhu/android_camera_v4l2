@@ -8,19 +8,19 @@
 #include <pthread.h>
 #include "NativeAPI.h"
 #include "CameraView.h"
-#include "DecodeCreator.h"
+#include "DecoderFactory.h"
 
 typedef enum {
-    STATUS_READY    = 0,
-    STATUS_CREATE   = 1,
-    STATUS_PARAM    = 2,
-    STATUS_OPEN     = 3,
-    STATUS_START    = 4,
+    STATUS_CREATE   = 0,
+    STATUS_OPEN     = 1,
+    STATUS_INIT     = 2,
+    STATUS_RUN      = 3,
 }StatusInfo;
 
 typedef enum {
-    FRAME_FORMAT_YUYV  = 0,
-    FRAME_FORMAT_MJPEG = 1,
+    FRAME_FORMAT_MJPEG = 0,
+    FRAME_FORMAT_YUYV  = 1,
+    FRAME_FORMAT_DEPTH = 2,
 } FrameFormat;
 
 struct VideoBuffer {
@@ -38,13 +38,12 @@ private:
     size_t pixelBytes;
     uint8_t *out_buffer;
     VideoBuffer *buffers;
-    DecodeCreator *decoder;
+    DecoderFactory *decoder;
 
     CameraView *preview;
     jobject frameCallback;
     jmethodID frameCallback_onFrame;
 
-    const char* deviceName;
     pthread_t thread_camera;
     volatile StatusInfo status;
 

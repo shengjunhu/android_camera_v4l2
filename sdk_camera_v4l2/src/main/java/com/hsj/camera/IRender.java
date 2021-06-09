@@ -14,5 +14,4 @@ import java.nio.ByteBuffer;
 public interface IRender extends GLSurfaceView.Renderer {
      Surface getSurface();
      void onRender(boolean isResume);
-     void updatePreview(ByteBuffer frame);
 }

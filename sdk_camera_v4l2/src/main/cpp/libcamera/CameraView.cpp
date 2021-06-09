@@ -16,7 +16,6 @@ typedef int XnInt32;
 typedef short XnInt16;
 typedef unsigned char XnUInt8;
 typedef uint16_t DepthPixel;
-typedef uint16_t Gray16Pixel;
 typedef struct {
     uint8_t y1;
     uint8_t u;
@@ -24,81 +23,11 @@ typedef struct {
     uint8_t v;
 } YUYV;
 
-unsigned int *histogram;
-
-CameraView::CameraView(int pixelWidth, int pixelHeight,
-        PixelFormat pixelFormat, ANativeWindow *window) :
-        window(window),
-        pixelSize(0),
-        pixelStride(0),
-        pixelWidth(pixelWidth),
-        pixelHeight(pixelHeight),
-        pixelFormat(pixelFormat),
-        lineSize(pixelWidth * 4) {
-    if (pixelFormat == PIXEL_FORMAT_YUYV) {
-        lineSize = pixelWidth * 4;
-        pixelStride = pixelWidth * 2;
-    } else if (pixelFormat == PIXEL_FORMAT_GRAY16) {
-        lineSize = pixelWidth * 4;
-        pixelStride = pixelWidth * 2;
-        pixelSize = pixelWidth * pixelHeight * 2;
-    } else if (pixelFormat == PIXEL_FORMAT_DEPTH) {
-        lineSize = pixelWidth * 4;
-        pixelStride = pixelWidth * 2;
-        pixelSize = pixelWidth * pixelHeight * 2;
-        histogram = (unsigned int *) malloc(HIST_SIZE * sizeof(unsigned int));
-    } else {
-        pixelSize = pixelWidth * pixelHeight * 4;
-        convert = new YUVConvert(pixelWidth, pixelHeight, pixelFormat);
-    }
-    ANativeWindow_setBuffersGeometry(window, pixelWidth, pixelHeight, WINDOW_FORMAT_RGBA_8888);
-}
-
-CameraView::~CameraView() {
-    destroy();
-}
-
-void CameraView::destroy() {
-    if (window) ANativeWindow_release(window);
-    if (convert) {
-        convert->destroy();
-        SAFE_DELETE(convert)
-    }
-    SAFE_FREE(histogram)
-    window = nullptr;
-    pixelSize = 0;
-    pixelWidth = 0;
-    pixelHeight = 0;
-    pixelFormat = 0;
-}
-
-void CameraView::render(uint8_t *data) {
-    switch (pixelFormat) {
-        case PIXEL_FORMAT_NV12:
-            renderNV12(data);
-            break;
-        case PIXEL_FORMAT_YUV422:
-            renderYUV422(data);
-            break;
-        case PIXEL_FORMAT_YUYV:
-            renderYUYV(data);
-            break;
-        case PIXEL_FORMAT_GRAY16:
-            renderGray16(data);
-            break;
-        case PIXEL_FORMAT_DEPTH:
-            renderDepth(data);
-            break;
-        case PIXEL_FORMAT_ERROR:
-        default:
-            LOGE(TAG, "Render pixelFormat is error: %d", pixelFormat)
-            break;
-    }
-}
-
 //==================================================================================================
 
-static void neon_memcpy(uint8_t *dst, uint8_t *src, size_t sz){
+static unsigned int *histogram;
+
+static void neon_memcpy(const uint8_t *dst, const uint8_t *src, size_t sz){
     if (sz & 63) sz = (sz & -64) + 64;
     asm volatile (
     "NEONCopyPLD: \n"
@@ -180,31 +109,112 @@ static void calculateDepthHist(const DepthPixel *depth, const unsigned long size
 
 //==================================================================================================
 
+CameraView::CameraView(int pixelWidth, int pixelHeight,
+        PixelFormat pixelFormat, ANativeWindow *window) :
+        window(window),
+        pixelWidth(pixelWidth),
+        pixelHeight(pixelHeight),
+        pixelFormat(pixelFormat),
+        lineSize(pixelWidth * 4),
+        pixelStride(pixelWidth * 2){
+    if (pixelFormat == PIXEL_FORMAT_RGBA) {
+        frameSize = pixelWidth * pixelHeight * 4;
+    } else if (pixelFormat == PIXEL_FORMAT_DEPTH) {
+        frameSize = pixelWidth * pixelHeight * 2;
+        histogram = (unsigned int *) malloc(HIST_SIZE * sizeof(unsigned int));
+    } else if (pixelFormat == PIXEL_FORMAT_YUYV) {
+        frameSize = pixelWidth * pixelHeight * 2;
+    } else {
+        LOGE(TAG,"PixelFormat error: %d",pixelFormat)
+    }
+    pixelSize = pixelWidth * pixelHeight * 4;
+    ANativeWindow_setBuffersGeometry(window, pixelWidth, pixelHeight, WINDOW_FORMAT_RGBA_8888);
+}
+
+CameraView::~CameraView() {
+    destroy();
+}
+
+void CameraView::render(uint8_t *data) {
+    switch (pixelFormat) {
+        case PIXEL_FORMAT_RGBA:
+            renderRGBA(data);
+            break;
+        case PIXEL_FORMAT_DEPTH:
+            renderDepth(data);
+            break;
+        case PIXEL_FORMAT_YUYV:
+            renderYUYV(data);
+            break;
+        case PIXEL_FORMAT_ERROR:
+        default:
+            LOGE(TAG, "Render pixelFormat is error: %d", pixelFormat)
+            break;
+    }
+}
+
+void CameraView::stop() {
+    ANativeWindow_Buffer buffer;
+    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
+        const size_t size = buffer.width * 4;
+        const int stride = buffer.stride * 4;
+        auto *dest = (uint8_t *) buffer.bits;
+        for (int h = 0; h < pixelHeight; ++h) {
+            memset(dest, 0, size);
+            dest += stride;
+        }
+        ANativeWindow_unlockAndPost(window);
+    }
+}
+
+void CameraView::destroy() {
+    if (window) {
+        ANativeWindow_release(window);
+        window = nullptr;
+    }
+    SAFE_FREE(histogram)
+    pixelWidth = 0;
+    pixelHeight = 0;
+    pixelFormat = 0;
+    pixelSize = 0;
+    pixelStride = 0;
+    lineSize = 0;
+}
+
 //10ms
-void CameraView::renderNV12(const uint8_t *data) {
-    uint8_t *rgba = convert->convertNV12(data);
+void CameraView::renderRGBA(const uint8_t *data) {
     ANativeWindow_Buffer buffer;
     if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
         //6ms
-        uint64_t start = timeMs();
+        //uint64_t start = timeMs();
         auto *dest = (uint8_t *) buffer.bits;
-        memcpy(dest, rgba, pixelSize);
-        //neon_memcpy(dest, rgba, pixelSize);
-        LOGD(TAG,"time=%lld", timeMs()-start)
+        //memcpy(dest, data, pixelSize);
+        neon_memcpy(dest, data, pixelSize);
+        //LOGD(TAG,"time=%lld", timeMs()-start)
         //3ms
         ANativeWindow_unlockAndPost(window);
     }
 }
 
-//10ms
-void CameraView::renderYUV422(const uint8_t *data) {
-    unsigned char *rgba = convert->convertYUV422(data);
+//20ms
+void CameraView::renderDepth(const uint8_t *data) {
+    // 1-Calculate Depth
+    calculateDepthHist((const DepthPixel *)data, frameSize);
+    // 2-Update texture
     ANativeWindow_Buffer buffer;
     if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        //6ms
-        auto *dest = (unsigned char *)buffer.bits;
-        memcpy(dest, rgba, pixelSize);
-        //3ms
+        auto *dest = (uint8_t *) buffer.bits;
+        for (int h = 0; h < pixelHeight; ++h) {
+            uint8_t *texture = dest + h * lineSize;
+            const auto *depth = (const DepthPixel *) (data + h * pixelStride);
+            for (int w = 0; w < pixelWidth; ++w, ++depth, texture += 4) {
+                unsigned int val = histogram[*depth];
+                texture[0] = val;
+                texture[1] = val;
+                texture[2] = val;
+                texture[3] = 0xff;
+            }
+        }
         ANativeWindow_unlockAndPost(window);
     }
 }
@@ -230,55 +240,3 @@ void CameraView::renderYUYV(const uint8_t *data) {
         ANativeWindow_unlockAndPost(window);
     }
 }
-
-//20ms
-void CameraView::renderGray16(const uint8_t *data) {
-    // 1-Find max gray value
-    int maxGray = 0;
-    size_t length = pixelSize / sizeof(Gray16Pixel);
-    const auto *_data = (const Gray16Pixel *) data;
-    for (int i = 0; i < length; ++i, ++_data) {
-        if (*_data > maxGray) {
-            maxGray = *_data;
-        }
-    }
-    // 2-Update texture
-    ANativeWindow_Buffer buffer;
-    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        auto *dest = (uint8_t *) buffer.bits;
-        for (int h = 0; h < pixelHeight; ++h) {
-            uint8_t *texture = dest + h * lineSize;
-            const auto *gray = (const Gray16Pixel *) (data + h * pixelStride);
-            for (int w = 0; w < pixelWidth; ++w, ++gray, texture += 4) {
-                texture[0] = texture[1] = texture[2] = 255.0 * (*gray) / maxGray;
-                texture[3] = 0xff;
-            }
-        }
-        ANativeWindow_unlockAndPost(window);
-    }
-}
-
-//20ms
-void CameraView::renderDepth(const uint8_t *data) {
-    // 1-Calculate Depth
-    calculateDepthHist((const DepthPixel *)data, pixelSize);
-    // 2-Update texture
-    ANativeWindow_Buffer buffer;
-    if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
-        auto *dest = (uint8_t *) buffer.bits;
-        for (int h = 0; h < pixelHeight; ++h) {
-            uint8_t *texture = dest + h * lineSize;
-            const auto *depth = (const DepthPixel *) (data + h * pixelStride);
-            for (int w = 0; w < pixelWidth; ++w, ++depth, texture += 4) {
-                unsigned int val = histogram[*depth];
-                texture[0] = val;
-                texture[1] = val;
-                texture[2] = val;
-                texture[3] = 0xff;
-            }
-        }
-        ANativeWindow_unlockAndPost(window);
-    }
-}
-
-

@@ -11,10 +11,11 @@ import android.view.Surface;
  */
 public final class CameraAPI {
 
-    private static final String TAG = "CameraAPI";
+    private static final String TAG = "Camera";
     //FrameFormat
-    public static final int FRAME_FORMAT_YUYV  = 0;
-    public static final int FRAME_FORMAT_MJPEG = 1;
+    public static final int FRAME_FORMAT_MJPEG = 0;
+    public static final int FRAME_FORMAT_YUYV  = 1;
+    public static final int FRAME_FORMAT_DEPTH = 2;
     //Status
     private static final int STATUS_ERROR_DESTROYED = 50;
     private static final int STATUS_ERROR_OPEN = 40;

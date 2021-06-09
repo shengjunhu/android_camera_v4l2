@@ -12,7 +12,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
 set(MODULE_MAIN camera)
 set(DIR_YUV     libyuv)
 set(DIR_CAMERA  libcamera)
-set(DIR_DECODER libdecoder)
 set(DIR_JPEG    libjpeg-turbo)
 
 # log switch
@@ -27,10 +26,8 @@ add_subdirectory(${DIR_YUV})
 add_subdirectory(${DIR_JPEG})
 
 # moudle main
-include_directories(${DIR_CAMERA} ${DIR_DECODER} ${DIR_JPEG} ${DIR_YUV}/include)
+include_directories(${DIR_CAMERA} ${DIR_JPEG} ${DIR_YUV}/include)
 aux_source_directory(${DIR_CAMERA} DIR_SRC)
-aux_source_directory(${DIR_DECODER} DIR_SRC2)
-list(APPEND DIR_SRC ${DIR_SRC2})
 add_library(${MODULE_MAIN} SHARED ${DIR_SRC})
 
 # find system support library

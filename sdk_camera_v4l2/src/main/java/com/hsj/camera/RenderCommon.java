@@ -5,7 +5,6 @@ import android.graphics.SurfaceTexture;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
-import android.opengl.Matrix;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Surface;
@@ -22,12 +21,12 @@ import javax.microedition.khronos.opengles.GL10;
 /**
  * @Author:Hsj
  * @Date:2021/5/10
- * @Class:RenderRGB
- * @Desc:
+ * @Class:RenderCommon
+ * @Desc:仅做旋转镜像
  */
-public final class RenderRGB implements IRender {
+final class RenderCommon implements IRender {
 
-    private static final String TAG = "RenderRGB";
+    private static final String TAG = "RenderCommon";
 
     /*
      * 顶点坐标
@@ -60,7 +59,7 @@ public final class RenderRGB implements IRender {
     //预览
     private SurfaceTexture surfaceTexture;
 
-    public RenderRGB(GLSurfaceView glSurfaceView, int frameW, int frameH) {
+    public RenderCommon(GLSurfaceView glSurfaceView, int frameW, int frameH) {
         this.glSurfaceView = glSurfaceView;
         //创建顶点坐标
         ByteBuffer bb1 = ByteBuffer.allocateDirect(32);
@@ -83,8 +82,14 @@ public final class RenderRGB implements IRender {
 
     @Override
     public Surface getSurface() {
-        if (surfaceTexture != null) {
-            return new Surface(surfaceTexture);
+        if (this.surfaceTexture != null) {
+            this.surfaceTexture.release();
+            this.surfaceTexture = null;
+        }
+        if (this.textures[0] != 0) {
+            this.surfaceTexture = new SurfaceTexture(this.textures[0]);
+            this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
+            return new Surface(this.surfaceTexture);
         }
         return null;
     }
@@ -101,11 +106,6 @@ public final class RenderRGB implements IRender {
             this.textures[0] = 0;
             this.glSurfaceView.onPause();
         }
-    }
-
-    @Override
-    public synchronized void updatePreview(ByteBuffer frame) {
-
     }
 
 //==================================================================================================
@@ -185,11 +185,11 @@ public final class RenderRGB implements IRender {
     private void createGlCondition() {
         AssetManager assets = glSurfaceView.getContext().getResources().getAssets();
         //1.1-加载shader
-        String shaderVertex = getShader(assets,"beauty_vertex.glsl");
+        String shaderVertex = getShader(assets,"camera_vertex.glsl");
         int vertexId = loadShader(GLES20.GL_VERTEX_SHADER, shaderVertex);
         checkGlError("loadShaderVertex");
         if (GLES20.GL_NONE == vertexId) return;
-        String shaderFragment = getShader(assets,"beauty_fragment.glsl");
+        String shaderFragment = getShader(assets,"camera_fragment.glsl");
         int fragmentId = loadShader(GLES20.GL_FRAGMENT_SHADER, shaderFragment);
         checkGlError("loadShaderFragment");
         if (GLES20.GL_NONE == fragmentId) return;
@@ -232,9 +232,6 @@ public final class RenderRGB implements IRender {
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_S, GL10.GL_CLAMP_TO_EDGE);
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_T, GL10.GL_CLAMP_TO_EDGE);
         checkGlError("createTexture");
-        //1.9-创建surfaceTexture
-        this.surfaceTexture = new SurfaceTexture(textures[0]);
-        this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
     }
 
     private synchronized void renderFrame() {

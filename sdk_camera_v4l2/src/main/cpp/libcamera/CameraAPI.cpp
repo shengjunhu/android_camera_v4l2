@@ -28,12 +28,11 @@ CameraAPI::CameraAPI() :
         frameHeight(0),
         frameFormat(0),
         thread_camera(0),
-        status(STATUS_READY),
+        status(STATUS_CREATE),
         preview(NULL),
         decoder(NULL),
         buffers(NULL),
         out_buffer(NULL),
-        deviceName(NULL),
         frameCallback(NULL),
         frameCallback_onFrame(NULL) {
 }
@@ -72,7 +71,7 @@ ActionInfo CameraAPI::prepareBuffer() {
         }
         buffers[i].length = buffer2.length;
         buffers[i].start = mmap(NULL, buffer2.length,
-                                PROT_READ | PROT_WRITE, MAP_SHARED, fd,buffer2.m.offset);
+                                PROT_READ | PROT_WRITE, MAP_SHARED, fd, buffer2.m.offset);
         if (MAP_FAILED == buffers[i].start) {
             LOGE(TAG, "prepareBuffer: ioctl VIDIOC_QUERYBUFfailed2")
             return ACTION_ERROR_START;
@@ -118,7 +117,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
     struct v4l2_buffer buffer;
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buffer.memory = V4L2_MEMORY_MMAP;
-    while (STATUS_START == camera->getStatus()) {
+    while (LIKELY(STATUS_RUN == camera->getStatus())) {
         FD_ZERO (&fds);
         FD_SET (camera->fd, &fds);
         tv.tv_sec = 2000;
@@ -129,24 +128,17 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
         } else if (0 > ioctl(camera->fd, VIDIOC_DQBUF, &buffer)) {
             LOGW(TAG, "Loop frame failed: %s", strerror(errno))
             continue;
-        } else if (camera->frameFormat == 0) {
-            //LOGD(TAG, "yuyv interval time = %lld", timeMs() - time0)
-            //time0 = timeMs();
-            memcpy(out_buffer, camera->buffers[buffer.index].start, buffer.length);
-            //Render
-            renderFrame(out_buffer);
-            //YUYV->Java
-            sendFrame(env, out_buffer);
-        } else {
+        } else if (camera->frameFormat == FRAME_FORMAT_MJPEG) {
             //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
             //time1 = timeMs();
 
             //MJPEG->NV12/YUV422
-            uint8_t *data = camera->decoder->convert(camera->buffers[buffer.index].start,buffer.bytesused);
+            void *start = camera->buffers[buffer.index].start;
+            uint8_t *data = camera->decoder->convert2YUV(start, buffer.bytesused);
             //LOGD(TAG, "decodeTime=%lld", timeMs() - time1)
 
-            //Render
-            renderFrame(data);
+            //Render->RGBA
+            renderFrame(camera->decoder->convert2RGBA(data, pixelBytes));
 
             //Data->Java
             sendFrame(env, data);
@@ -158,6 +150,18 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
                fclose(fp);
                LOGD(TAG,"Capture one frame saved in /sdcard/1280x800.yuv");
             }*/
+        } else {
+            //LOGD(TAG, "yuyv interval time = %lld", timeMs() - time0)
+            //time0 = timeMs();
+
+            //YUYV
+            memcpy(out_buffer, camera->buffers[buffer.index].start, buffer.length);
+
+            //Render->YUYV
+            renderFrame(out_buffer);
+
+            //YUYV->Java
+            sendFrame(env, out_buffer);
         }
         if (0 > ioctl(camera->fd, VIDIOC_QBUF, &buffer)) {
             LOGW(TAG, "Loop frame: ioctl VIDIOC_QBUF %s", strerror(errno))
@@ -166,14 +170,16 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
     }
 }
 
-void CameraAPI::renderFrame(uint8_t *data){
+void CameraAPI::renderFrame(uint8_t *data) {
     //u_int64_t start = timeMs();
-    if (preview != NULL && LIKELY(data)) preview->render(data);
+    if (LIKELY(preview && data)) {
+        preview->render(data);
+    }
     //LOGD(TAG, "renderTime=%lld", timeMs() - start)
 }
 
 void CameraAPI::sendFrame(JNIEnv *env, uint8_t *data) {
-    if (LIKELY(data) && LIKELY(frameCallback_onFrame)) {
+    if (frameCallback_onFrame && LIKELY(data)) {
         jobject frame = env->NewDirectByteBuffer(data, pixelBytes);
         env->CallVoidMethod(frameCallback, frameCallback_onFrame, frame);
         env->DeleteLocalRef(frame);
@@ -185,7 +191,7 @@ void CameraAPI::sendFrame(JNIEnv *env, uint8_t *data) {
 
 ActionInfo CameraAPI::open(unsigned int target_pid, unsigned int target_vid) {
     ActionInfo action = ACTION_SUCCESS;
-    if (STATUS_CREATE != getStatus()) {
+    if (STATUS_CREATE == getStatus()) {
         std::string dev_video_name;
         for (int i = 0; i <= MAX_DEV_VIDEO_INDEX; ++i) {
             dev_video_name.append("video").append(std::to_string(i));
@@ -193,7 +199,7 @@ ActionInfo CameraAPI::open(unsigned int target_pid, unsigned int target_vid) {
             int vid = 0, pid = 0;
             if (!(std::ifstream("/sys/class/video4linux/" + dev_video_name + "/device/modalias") >> modalias)) {
                 LOGD(TAG, "dev/%s : read modalias failed", dev_video_name.c_str())
-            } else if (modalias.size() < 14 || modalias.substr(0, 5) != "usb:v" ||modalias[9] != 'p') {
+            } else if (modalias.size() < 14 || modalias.substr(0, 5) != "usb:v" || modalias[9] != 'p') {
                 LOGD(TAG, "dev/%s : format is not a usb of modalias", dev_video_name.c_str())
             } else if (!(std::istringstream(modalias.substr(5, 4)) >> std::hex >> vid)) {
                 LOGD(TAG, "dev/%s : read vid failed", dev_video_name.c_str())
@@ -213,7 +219,7 @@ ActionInfo CameraAPI::open(unsigned int target_pid, unsigned int target_vid) {
             LOGW(TAG, "open: no target device")
             action = ACTION_ERROR_NO_DEVICE;
         } else {
-            deviceName = dev_video_name.data();
+            const char *deviceName = dev_video_name.data();
             fd = ::open(deviceName, O_RDWR | O_NONBLOCK, 0);
             if (0 > fd) {
                 LOGE(TAG, "open: %s failed, %s", deviceName, strerror(errno))
@@ -238,7 +244,7 @@ ActionInfo CameraAPI::open(unsigned int target_pid, unsigned int target_vid) {
 }
 
 ActionInfo CameraAPI::autoExposure(bool isAuto) {
-    if (STATUS_OPEN == getStatus()) {
+    if (STATUS_OPEN <= getStatus()) {
         struct v4l2_control ctrl;
         SAFE_CLEAR(ctrl)
         ctrl.id = V4L2_CID_EXPOSURE_AUTO;
@@ -257,7 +263,7 @@ ActionInfo CameraAPI::autoExposure(bool isAuto) {
 }
 
 ActionInfo CameraAPI::updateExposure(unsigned int level) {
-    if (STATUS_CREATE < getStatus()) {
+    if (STATUS_OPEN <= getStatus()) {
         struct v4l2_control ctrl;
         SAFE_CLEAR(ctrl)
         ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
@@ -284,38 +290,21 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         format.fmt.pix.width = width;
         format.fmt.pix.height = height;
         format.fmt.pix.field = V4L2_FIELD_ANY;
-        if (frame_format == FRAME_FORMAT_YUYV) {
-            format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-        } else {
-            format.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
-        }
+        format.fmt.pix.pixelformat = frame_format ? V4L2_PIX_FMT_YUYV : V4L2_PIX_FMT_MJPEG;
         if (0 > ioctl(fd, VIDIOC_S_FMT, &format)) {
             LOGW(TAG, "setFrameSize: ioctl set format failed, %s", strerror(errno))
             return ACTION_ERROR_SET_W_H;
+        }
+        if (frame_format) {
+            pixelBytes = width * height * 2;
+            out_buffer = (uint8_t *) calloc(1, pixelBytes);
         } else {
-            if (frame_format == FRAME_FORMAT_YUYV) {
-                if (decoder != NULL) {
-                    decoder->destroy();
-                    SAFE_DELETE(decoder)
-                }
-                SAFE_FREE(out_buffer)
-                pixelBytes = width * height * 2;
-                out_buffer = (uint8_t *) calloc(1, pixelBytes);
+            decoder = new DecoderFactory(width, height);
+            PixelFormat pixelFormat = decoder->getPixelFormat();
+            if (pixelFormat == PIXEL_FORMAT_NV12) {
+                pixelBytes = width * height * 3 / 2;
             } else {
-                if (decoder == NULL) {
-                    decoder = new DecodeCreator(width, height);
-                }
-                SAFE_FREE(out_buffer)
-                PixelFormat pixelFormat = decoder->getPixelFormat();
-                if (pixelFormat == PIXEL_FORMAT_NV12){
-                    pixelBytes = width * height * 3 / 2;
-                } else if (pixelFormat == PIXEL_FORMAT_YUV422){
-                    pixelBytes = width * height * 2;
-                } else {
-                    LOGE(TAG, "PixelFormat is error: %d", pixelFormat)
-                    return ACTION_ERROR_DECODER;
-                }
-                out_buffer = (uint8_t *) calloc(1, pixelBytes);
+                pixelBytes = width * height * 2;
             }
         }
 
@@ -324,10 +313,10 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         SAFE_CLEAR(parm)
         parm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         parm.parm.capture.timeperframe.numerator = 1;
-        if (frame_format == 0) {
-            parm.parm.capture.timeperframe.denominator = 10;
-        } else {
+        if (frame_format == FRAME_FORMAT_MJPEG) {
             parm.parm.capture.timeperframe.denominator = 30;
+        } else {
+            parm.parm.capture.timeperframe.denominator = 10;
         }
         if (0 > ioctl(fd, VIDIOC_S_PARM, &parm)) {
             LOGW(TAG, "setFrameSize: ioctl set fps failed, %s", strerror(errno))
@@ -346,7 +335,7 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         frameWidth = width;
         frameHeight = height;
         frameFormat = frame_format;
-        status = STATUS_PARAM;
+        status = STATUS_INIT;
         return ACTION_SUCCESS;
     } else {
         LOGW(TAG, "setFrameSize: error status, %d", getStatus())
@@ -355,7 +344,7 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
 }
 
 ActionInfo CameraAPI::setFrameCallback(JNIEnv *env, jobject frame_callback) {
-    if (STATUS_PARAM == getStatus()) {
+    if (STATUS_INIT == getStatus()) {
         if (!env->IsSameObject(frameCallback, frame_callback)) {
             if (frameCallback) {
                 env->DeleteGlobalRef(frameCallback);
@@ -364,8 +353,7 @@ ActionInfo CameraAPI::setFrameCallback(JNIEnv *env, jobject frame_callback) {
                 jclass clazz = env->GetObjectClass(frame_callback);
                 if (LIKELY(clazz)) {
                     frameCallback = frame_callback;
-                    frameCallback_onFrame = env->GetMethodID(
-                            clazz,"onFrame","(Ljava/nio/ByteBuffer;)V");
+                    frameCallback_onFrame = env->GetMethodID(clazz, "onFrame","(Ljava/nio/ByteBuffer;)V");
                 }
                 env->ExceptionClear();
                 if (!frameCallback_onFrame) {
@@ -383,13 +371,20 @@ ActionInfo CameraAPI::setFrameCallback(JNIEnv *env, jobject frame_callback) {
 }
 
 ActionInfo CameraAPI::setPreview(ANativeWindow *window) {
-    if (STATUS_PARAM == getStatus()) {
+    if (STATUS_INIT == getStatus()) {
         if (preview) {
             preview->destroy();
             SAFE_DELETE(preview);
         }
-        if (LIKELY(window)){
-            PixelFormat pixelFormat = decoder ? decoder->getPixelFormat() : PIXEL_FORMAT_YUYV;
+        if (LIKELY(window)) {
+            PixelFormat pixelFormat = PIXEL_FORMAT_ERROR;
+            if (decoder) {
+                pixelFormat = PIXEL_FORMAT_RGBA;
+            } else if (frameFormat == FRAME_FORMAT_YUYV) {
+                pixelFormat = PIXEL_FORMAT_YUYV;
+            } else if (frameFormat == FRAME_FORMAT_DEPTH) {
+                pixelFormat = PIXEL_FORMAT_DEPTH;
+            }
             preview = new CameraView(frameWidth, frameHeight, pixelFormat, window);
         }
         return ACTION_SUCCESS;
@@ -401,7 +396,7 @@ ActionInfo CameraAPI::setPreview(ANativeWindow *window) {
 
 ActionInfo CameraAPI::start() {
     ActionInfo action = ACTION_ERROR_START;
-    if (STATUS_PARAM == getStatus()) {
+    if (STATUS_INIT == getStatus()) {
         if (ACTION_SUCCESS == prepareBuffer()) {
             //1-start stream
             enum v4l2_buf_type type;
@@ -409,11 +404,9 @@ ActionInfo CameraAPI::start() {
             if (0 > ioctl(fd, VIDIOC_STREAMON, &type)) {
                 LOGE(TAG, "start: ioctl VIDIOC_STREAMON failed, %s", strerror(errno))
             } else {
-                status = STATUS_START;
+                status = STATUS_RUN;
                 //2-start decoder
-                if (decoder) {
-                    decoder->start();
-                }
+                if (decoder) decoder->start();
                 //3-start thread loop frame
                 if (0 == pthread_create(&thread_camera, NULL, loopThread, (void *) this)) {
                     LOGD(TAG, "start: success")
@@ -433,8 +426,8 @@ ActionInfo CameraAPI::start() {
 
 ActionInfo CameraAPI::stop() {
     ActionInfo action = ACTION_SUCCESS;
-    if (STATUS_START == getStatus()) {
-        status = STATUS_OPEN;
+    if (STATUS_RUN == getStatus()) {
+        status = STATUS_INIT;
         //1-stop thread
         if (0 == pthread_join(thread_camera, NULL)) {
             LOGD(TAG, "stop: pthread_join success")
@@ -442,7 +435,11 @@ ActionInfo CameraAPI::stop() {
             LOGE(TAG, "stop: pthread_join failed, %s", strerror(errno))
             action = ACTION_ERROR_STOP;
         }
-        //2-stop stream
+        //2-stop decoder
+        if (decoder) decoder->stop();
+        //3-stop preview
+        if (preview) preview->stop();
+        //4-stop stream
         enum v4l2_buf_type type;
         type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         if (0 > ioctl(fd, VIDIOC_STREAMOFF, &type)) {
@@ -451,15 +448,11 @@ ActionInfo CameraAPI::stop() {
         } else {
             LOGD(TAG, "stop: ioctl VIDIOC_STREAMOFF success")
         }
-        //3-release buffer
-        for (unsigned int i = 0; i < MAX_BUFFER_COUNT; ++i) {
+        //5-release buffer
+        for (int i = 0; i < MAX_BUFFER_COUNT; ++i) {
             if (0 != munmap(buffers[i].start, buffers[i].length)) {
                 LOGW(TAG, "stop: munmap failed")
             }
-        }
-        //4-stop decoder
-        if (decoder) {
-            decoder->stop();
         }
     } else {
         LOGW(TAG, "stop: error status, %d", getStatus())
@@ -470,7 +463,7 @@ ActionInfo CameraAPI::stop() {
 
 ActionInfo CameraAPI::close() {
     ActionInfo action = ACTION_SUCCESS;
-    if (STATUS_OPEN == getStatus()) {
+    if (STATUS_INIT == getStatus()) {
         status = STATUS_CREATE;
         //1-close fd
         if (0 > ::close(fd)) {
@@ -479,15 +472,20 @@ ActionInfo CameraAPI::close() {
         } else {
             LOGD(TAG, "close: success")
         }
-        //2-destroy decoder
+        //2-release buffer
+        SAFE_FREE(buffers)
+        SAFE_FREE(out_buffer)
+        //3-destroy decoder
         if (decoder) {
             decoder->destroy();
             SAFE_DELETE(decoder)
         }
-        //3-release buffer
-        SAFE_FREE(buffers)
-        SAFE_FREE(out_buffer)
-        //4-release frameCallback
+        //4-preview destroy
+        if (preview) {
+            preview->destroy();
+            SAFE_DELETE(preview);
+        }
+        //5-release frameCallback
         JNIEnv *env = getEnv();
         if (env && !frameCallback_onFrame) {
             env->DeleteGlobalRef(frameCallback);
@@ -501,19 +499,18 @@ ActionInfo CameraAPI::close() {
 }
 
 ActionInfo CameraAPI::destroy() {
-    LOGD(TAG, "destroy")
     fd = 0;
     pixelBytes = 0;
     frameWidth = 0;
     frameHeight = 0;
     frameFormat = 0;
     thread_camera = 0;
-    status = STATUS_READY;
+    status = STATUS_CREATE;
     frameCallback = NULL;
     frameCallback_onFrame = NULL;
     SAFE_FREE(buffers)
     SAFE_FREE(out_buffer)
     SAFE_DELETE(decoder)
-    SAFE_DELETE(deviceName)
+    LOGD(TAG, "destroy")
     return ACTION_SUCCESS;
 }
