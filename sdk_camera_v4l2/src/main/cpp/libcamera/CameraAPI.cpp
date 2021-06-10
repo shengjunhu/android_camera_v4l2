@@ -378,7 +378,7 @@ ActionInfo CameraAPI::setPreview(ANativeWindow *window) {
         }
         if (LIKELY(window)) {
             PixelFormat pixelFormat = PIXEL_FORMAT_ERROR;
-            if (decoder) {
+            if (decoder != NULL) {
                 pixelFormat = PIXEL_FORMAT_RGBA;
             } else if (frameFormat == FRAME_FORMAT_YUYV) {
                 pixelFormat = PIXEL_FORMAT_YUYV;
@@ -406,7 +406,7 @@ ActionInfo CameraAPI::start() {
             } else {
                 status = STATUS_RUN;
                 //2-start decoder
-                if (decoder) decoder->start();
+                if (decoder != NULL) decoder->start();
                 //3-start thread loop frame
                 if (0 == pthread_create(&thread_camera, NULL, loopThread, (void *) this)) {
                     LOGD(TAG, "start: success")
@@ -436,9 +436,9 @@ ActionInfo CameraAPI::stop() {
             action = ACTION_ERROR_STOP;
         }
         //2-stop decoder
-        if (decoder) decoder->stop();
+        if (decoder != NULL) decoder->stop();
         //3-stop preview
-        if (preview) preview->stop();
+        if (preview != NULL) preview->stop();
         //4-stop stream
         enum v4l2_buf_type type;
         type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -476,12 +476,12 @@ ActionInfo CameraAPI::close() {
         SAFE_FREE(buffers)
         SAFE_FREE(out_buffer)
         //3-destroy decoder
-        if (decoder) {
+        if (decoder != NULL) {
             decoder->destroy();
             SAFE_DELETE(decoder)
         }
         //4-preview destroy
-        if (preview) {
+        if (preview != NULL) {
             preview->destroy();
             SAFE_DELETE(preview);
         }

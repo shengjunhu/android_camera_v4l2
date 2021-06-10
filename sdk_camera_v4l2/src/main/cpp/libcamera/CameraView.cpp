@@ -188,8 +188,8 @@ void CameraView::renderRGBA(const uint8_t *data) {
         //6ms
         //uint64_t start = timeMs();
         auto *dest = (uint8_t *) buffer.bits;
-        //memcpy(dest, data, pixelSize);
-        neon_memcpy(dest, data, pixelSize);
+        memcpy(dest, data, pixelSize);
+        //neon_memcpy(dest, data, pixelSize);
         //LOGD(TAG,"time=%lld", timeMs()-start)
         //3ms
         ANativeWindow_unlockAndPost(window);

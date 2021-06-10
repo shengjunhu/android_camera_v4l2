@@ -5,16 +5,18 @@
 #include <cstring>
 #include <cstdlib>
 #include "DecoderFactory.h"
+
 #define TAG "DecoderFactory"
 
 //*****************************************DecoderHw.cpp******************************************//
 
 #include <libyuv.h>
 #include <media/NdkMediaCodec.h>
+
 #define MIME_TYPE "video/mjpeg"
 #define TIME_OUT_US 3000
 
-class DecoderHw: public IDecoder {
+class DecoderHw : public IDecoder {
 private:
     int YSize = 0;
     uint8_t *rgba_buffer = NULL;
@@ -32,35 +34,34 @@ public:
         AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_I_FRAME_INTERVAL, 1);
         AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_BIT_RATE, width * height);
         if (AMEDIA_OK == AMediaCodec_configure(mediaCodec, mediaFormat, NULL, NULL, 0)) {
-            //AMediaFormat_delete(format);
             LOGD(TAG, "Hardware: create success")
             this->width = width;
             this->height = height;
             YSize = width * height;
-            rgba_buffer = (uint8_t *)malloc(width * height * 4);
-            return true;
+            rgba_buffer = (uint8_t *) malloc(width * height * 4);
+            if (AMEDIA_OK == AMediaCodec_start(mediaCodec)) {
+                LOGD(TAG, "Hardware: start success")
+                return true;
+            } else {
+                LOGD(TAG, "Hardware: start failure")
+            }
         } else {
             LOGE(TAG, "Hardware: create failure")
-            AMediaFormat_delete(mediaFormat);
-            AMediaCodec_delete(mediaCodec);
-            mediaCodec = NULL;
-            return false;
         }
+        AMediaFormat_delete(mediaFormat);
+        AMediaCodec_delete(mediaCodec);
+        mediaCodec = NULL;
+        return false;
     }
 
     bool start() override {
         //2-Start
-        if (AMEDIA_OK == AMediaCodec_start(mediaCodec)) {
-            LOGD(TAG, "Hardware: start success")
-            return true;
-        } else {
-            LOGE(TAG, "Hardware: start failure")
-            return false;
-        }
+        LOGD(TAG, "Hardware: start success")
+        return true;
     }
 
     //3ms
-    uint8_t* convert2YUV(void *raw_buffer, unsigned long raw_size) override {
+    uint8_t *convert2YUV(void *raw_buffer, unsigned long raw_size) override {
         //3.1-get input buffer index on buffers
         ssize_t in_buffer_id = AMediaCodec_dequeueInputBuffer(mediaCodec, TIME_OUT_US);
         if (in_buffer_id < 0) {
@@ -80,7 +81,7 @@ public:
             ssize_t out_buffer_id = AMediaCodec_dequeueOutputBuffer(mediaCodec, &info, TIME_OUT_US);
             if (out_buffer_id >= 0) {
                 //3.6-get output buffer by output buffer index
-                uint8_t* out = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
+                uint8_t *out = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
                 //3.7-release output buffer by output buffer index
                 AMediaCodec_releaseOutputBuffer(mediaCodec, out_buffer_id, false);
                 //3.8-return nv12
@@ -108,7 +109,7 @@ public:
     }
 
     //5~6ms: nv12->rgba
-    uint8_t* convert2RGBA(uint8_t *src_buffer, unsigned long src_size) override {
+    uint8_t *convert2RGBA(uint8_t *src_buffer, unsigned long src_size) override {
         libyuv::NV12ToABGR(src_buffer, width, src_buffer + YSize, width,
                            rgba_buffer, width * 4, width, height);
         return rgba_buffer;
@@ -116,24 +117,20 @@ public:
 
     bool stop() override {
         //4-Stop
-        if (AMEDIA_OK == AMediaCodec_stop(mediaCodec)) {
-            LOGD(TAG, "Hardware: stop success")
-            return true;
-        } else {
-            LOGE(TAG, "Hardware: stop failure")
-            return false;
-        }
+        LOGD(TAG, "Hardware: stop success")
+        return true;
     }
 
     void destroy() override {
         //5-Destroy
-        if (mediaCodec) {
+        if (mediaCodec != NULL) {
+            AMediaCodec_stop(mediaCodec);
             AMediaCodec_delete(mediaCodec);
             mediaCodec = NULL;
         }
         SAFE_FREE(rgba_buffer)
         YSize = width = height = 0;
-        LOGD(TAG, "Hardware： destroy success")
+        LOGD(TAG, "Hardware: destroy success")
     }
 };
 
@@ -141,10 +138,10 @@ public:
 
 #include <turbojpeg.h>
 
-class DecoderSw: public IDecoder {
+class DecoderSw : public IDecoder {
 private:
     int flags = 0;
-    int _width  = 0;
+    int _width = 0;
     int _height = 0;
     int subSample = 0;
     int colorSpace = 0;
@@ -162,7 +159,7 @@ public:
         out_buffer = tjAlloc(out_buffer_size);
         //3-Alloc rgba out buffer memory
         rgba_buffer = tjAlloc(width * height * tjPixelSize[TJPF_RGBA]);
-        LOGD(TAG,"DecoderSw: create success")
+        LOGD(TAG, "DecoderSw: create success")
         return true;
     }
 
@@ -173,7 +170,7 @@ public:
     }
 
     //20ms
-    uint8_t* convert2YUV(void *raw_buffer, unsigned long raw_size) override {
+    uint8_t *convert2YUV(void *raw_buffer, unsigned long raw_size) override {
         auto *raw = (unsigned char *) raw_buffer;
         //5-Get raw_buffer info: subSample = TJSAMP_422
         tjDecompressHeader3(handle, raw, raw_size, &_width, &_height, &subSample, &colorSpace);
@@ -183,8 +180,8 @@ public:
     }
 
     //5~6ms: yuv422->rgba
-    uint8_t* convert2RGBA(uint8_t *src_buffer, unsigned long src_size) override {
-        tjDecodeYUV(handle,  src_buffer, 4, subSample, rgba_buffer,
+    uint8_t *convert2RGBA(uint8_t *src_buffer, unsigned long src_size) override {
+        tjDecodeYUV(handle, src_buffer, 4, subSample, rgba_buffer,
                     _width, 0, _height, TJPF_RGBA, flags);
         return rgba_buffer;
     }
@@ -197,15 +194,15 @@ public:
 
     void destroy() override {
         //8-Destroy handle
-        if (out_buffer) {
+        if (out_buffer != NULL) {
             tjFree(out_buffer);
             out_buffer = nullptr;
         }
-        if (rgba_buffer) {
+        if (rgba_buffer != NULL) {
             tjFree(rgba_buffer);
             rgba_buffer = nullptr;
         }
-        if (handle) {
+        if (handle != NULL) {
             tjDestroy(handle);
             handle = nullptr;
         }
@@ -218,14 +215,16 @@ public:
 
 //*****************************************DecoderFactory.cpp*************************************//
 
-enum { ACTION_INIT = 0, ACTION_CREATE = 1, ACTION_RUN = 2};
+enum {
+    ACTION_INIT = 0, ACTION_CREATE = 1, ACTION_RUN = 2
+};
 
-DecoderFactory::DecoderFactory(int frameW, int frameH) :decoder(NULL),action(ACTION_INIT) {
+DecoderFactory::DecoderFactory(int frameW, int frameH) : decoder(NULL), action(ACTION_INIT) {
     if (frameW <= 0 || frameH <= 0) {
         LOGE(TAG, "init frameW or frameH is error")
     } else {
         decoder = new DecoderHw();
-        if (decoder->create(frameW,frameH)) {
+        if (decoder->create(frameW, frameH)) {
             type = DECODE_HW;
             action = ACTION_CREATE;
             LOGD(TAG, "decode by Hardware")
@@ -233,7 +232,7 @@ DecoderFactory::DecoderFactory(int frameW, int frameH) :decoder(NULL),action(ACT
             decoder->destroy();
             SAFE_DELETE(decoder)
             decoder = new DecoderSw();
-            decoder->create(frameW,frameH);
+            decoder->create(frameW, frameH);
             type = DECODE_SW;
             action = ACTION_CREATE;
             LOGD(TAG, "decode by Software")
@@ -264,31 +263,31 @@ bool DecoderFactory::start() {
     if (LIKELY(ACTION_CREATE == onAction())) {
         ret = decoder->start();
         if (ret) action = ACTION_RUN;
-    }else {
-        LOGE(TAG, "start error: %d",onAction())
+    } else {
+        LOGE(TAG, "start error: %d", onAction())
     }
     LOGD(TAG, "start: %s", ret ? "success" : "failed")
     return ret;
 }
 
-uint8_t* DecoderFactory::convert2YUV(void *raw_buffer, unsigned long raw_size) {
+uint8_t *DecoderFactory::convert2YUV(void *raw_buffer, unsigned long raw_size) {
     if (LIKELY(ACTION_RUN == onAction())) {
         return decoder->convert2YUV(raw_buffer, raw_size);
     } else {
-        LOGW(TAG, "convert2YUV error: %d",onAction())
+        LOGW(TAG, "convert2YUV error: %d", onAction())
         return NULL;
     }
 }
 
-uint8_t* DecoderFactory::convert2RGBA(uint8_t *src_buffer, unsigned long src_size) {
+uint8_t *DecoderFactory::convert2RGBA(uint8_t *src_buffer, unsigned long src_size) {
     if (LIKELY(ACTION_RUN == onAction())) {
-        if (LIKELY(src_buffer)){
+        if (LIKELY(src_buffer)) {
             return decoder->convert2RGBA(src_buffer, src_size);
         } else {
             LOGW(TAG, "convert2RGBA src buffer is null")
         }
     } else {
-        LOGW(TAG, "convert2RGBA error: %d",onAction())
+        LOGW(TAG, "convert2RGBA error: %d", onAction())
     }
     return NULL;
 }
@@ -299,14 +298,14 @@ bool DecoderFactory::stop() {
         action = ACTION_CREATE;
         ret = decoder->stop();
     } else {
-        LOGE(TAG, "stop error: %d",onAction())
+        LOGE(TAG, "stop error: %d", onAction())
     }
     LOGD(TAG, "stop: %s", ret ? "success" : "failed")
     return ret;
 }
 
 void DecoderFactory::destroy() {
-    if (LIKELY(decoder)) {
+    if (LIKELY(decoder != NULL)) {
         action = ACTION_INIT;
         decoder->destroy();
         SAFE_DELETE(decoder)

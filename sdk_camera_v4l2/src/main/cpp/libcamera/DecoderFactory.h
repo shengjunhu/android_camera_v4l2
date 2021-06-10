@@ -26,7 +26,7 @@ class IDecoder {
 protected:
     int width, height;
 public:
-    virtual ~IDecoder(){};
+    virtual ~IDecoder() = default;
     virtual bool create(int width, int height) = 0;
     virtual bool start() = 0;
     virtual uint8_t* convert2YUV(void *raw_buffer, unsigned long raw_size) = 0;

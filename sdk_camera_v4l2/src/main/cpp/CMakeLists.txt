@@ -34,4 +34,4 @@ add_library(${MODULE_MAIN} SHARED ${DIR_SRC})
 find_library(log-lib log)
 
 # target link libraries turbojpeg
-target_link_libraries(${MODULE_MAIN} ${log-lib} turbojpeg yuv mediandk android jnigraphics)
+target_link_libraries(${MODULE_MAIN} ${log-lib} turbojpeg yuv mediandk android #[[jnigraphics]])
