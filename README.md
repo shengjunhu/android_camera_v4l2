@@ -17,6 +17,9 @@ android sample of v4l2 camera
     it is recommended to use libjpeg-turbo instead of HwDecoder.
 - 4.Support OpenGL ES rendering YUYV, NV12, NV21, DEPTH and other image formats.
 
+### Plan Add Function
+- 1.Add opengl filter for beauty by face color
+
 ### About Build
 - CMake: 3.10.2
 - Android Studio 4.0
