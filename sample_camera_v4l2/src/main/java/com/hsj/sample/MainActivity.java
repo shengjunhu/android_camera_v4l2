@@ -38,8 +38,8 @@ public final class MainActivity extends AppCompatActivity {
     private static final int RGB_WIDTH = 1280;
     private static final int RGB_HEIGHT = 800;
     //IR: Usb camera productId and vendorId
-    private static final int IR_PID = 25446/*768*/;
-    private static final int IR_VID = 3141/*11707*/;
+    private static final int IR_PID = 25446;
+    private static final int IR_VID = 3141;
     //IR: frame of width and height
     private static final int IR_WIDTH = 640;
     private static final int IR_HEIGHT = 400;
@@ -47,7 +47,6 @@ public final class MainActivity extends AppCompatActivity {
     private CameraAPI cameraRGB, cameraIR;
     //IRender
     private IRender render;
-    private Surface surface;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,34 +56,19 @@ public final class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_start).setOnClickListener(v->start());
         findViewById(R.id.btn_stop).setOnClickListener(v->stop());
         findViewById(R.id.btn_destroy).setOnClickListener(v->destroy());
-
         CameraView cameraView = findViewById(R.id.preview);
         render = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.BEAUTY);
 
-        /*SurfaceView preview = findViewById(R.id.preview);
-        preview.getHolder().addCallback(new SurfaceHolder.Callback() {
-            @Override
-            public void surfaceCreated(SurfaceHolder holder) {
-                surface = holder.getSurface();
-            }
-
-            @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-
-            }
-
-            @Override
-            public void surfaceDestroyed(SurfaceHolder holder) {
-
-            }
-        });*/
-
-        requestPermission();
+        //Print usb video productId and vendorId
         UsbManager mUsbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         HashMap<String, UsbDevice> devices = mUsbManager.getDeviceList();
         for (UsbDevice device : devices.values()) {
             Log.i(TAG, "pid=" + device.getProductId() + ",vid=" + device.getVendorId());
         }
+
+        //Request /dev/video* permission
+        boolean result = requestPermission();
+        if (!result) Log.e(TAG,"Request permission failed");
     }
 
     @Override
@@ -149,7 +133,7 @@ public final class MainActivity extends AppCompatActivity {
             boolean result = this.cameraRGB.create(RGB_PID, RGB_VID);
             if (result) {
                 this.cameraRGB.setFrameSize(RGB_WIDTH, RGB_HEIGHT, CameraAPI.FRAME_FORMAT_MJPEG);
-            }else {
+            } else {
                 showToast("camera open failed: rgb");
             }
         }
@@ -159,7 +143,7 @@ public final class MainActivity extends AppCompatActivity {
             boolean result = this.cameraIR.create(IR_PID, IR_VID);
             if (result) {
                 this.cameraIR.setFrameSize(IR_WIDTH, IR_HEIGHT, CameraAPI.FRAME_FORMAT_YUYV);
-            }else {
+            } else {
                 showToast("camera open failed: ir");
             }
         }

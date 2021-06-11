@@ -10,7 +10,6 @@
 
 //*****************************************DecoderHw.cpp******************************************//
 
-#include <libyuv.h>
 #include <media/NdkMediaCodec.h>
 
 #define MIME_TYPE "video/mjpeg"
@@ -18,8 +17,6 @@
 
 class DecoderHw : public IDecoder {
 private:
-    int YSize = 0;
-    uint8_t *rgba_buffer = NULL;
     AMediaCodec *mediaCodec = NULL;
 public:
     bool create(int width, int height) override {
@@ -35,10 +32,6 @@ public:
         AMediaFormat_setInt32(mediaFormat, AMEDIAFORMAT_KEY_BIT_RATE, width * height);
         if (AMEDIA_OK == AMediaCodec_configure(mediaCodec, mediaFormat, NULL, NULL, 0)) {
             LOGD(TAG, "Hardware: create success")
-            this->width = width;
-            this->height = height;
-            YSize = width * height;
-            rgba_buffer = (uint8_t *) malloc(width * height * 4);
             if (AMEDIA_OK == AMediaCodec_start(mediaCodec)) {
                 LOGD(TAG, "Hardware: start success")
                 return true;
@@ -108,13 +101,6 @@ public:
         return NULL;
     }
 
-    //5~6ms: nv12->rgba
-    uint8_t *convert2RGBA(uint8_t *src_buffer, unsigned long src_size) override {
-        libyuv::NV12ToABGR(src_buffer, width, src_buffer + YSize, width,
-                           rgba_buffer, width * 4, width, height);
-        return rgba_buffer;
-    }
-
     bool stop() override {
         //4-Stop
         LOGD(TAG, "Hardware: stop success")
@@ -128,8 +114,6 @@ public:
             AMediaCodec_delete(mediaCodec);
             mediaCodec = NULL;
         }
-        SAFE_FREE(rgba_buffer)
-        YSize = width = height = 0;
         LOGD(TAG, "Hardware: destroy success")
     }
 };
@@ -146,19 +130,14 @@ private:
     int subSample = 0;
     int colorSpace = 0;
     tjhandle handle = NULL;
-    uint8_t *rgba_buffer = NULL;
     unsigned char *out_buffer = NULL;
 public:
     bool create(int width, int height) override {
-        this->width = width;
-        this->height = height;
         //1-Create decompress
         handle = tjInitDecompress();
         //2-Alloc yuv422 out buffer memory: subSample = TJSAMP_422
         size_t out_buffer_size = tjBufSizeYUV2(width, 4, height, TJSAMP_422);
         out_buffer = tjAlloc(out_buffer_size);
-        //3-Alloc rgba out buffer memory
-        rgba_buffer = tjAlloc(width * height * tjPixelSize[TJPF_RGBA]);
         LOGD(TAG, "DecoderSw: create success")
         return true;
     }
@@ -179,13 +158,6 @@ public:
         return (uint8_t *) out_buffer;
     }
 
-    //5~6ms: yuv422->rgba
-    uint8_t *convert2RGBA(uint8_t *src_buffer, unsigned long src_size) override {
-        tjDecodeYUV(handle, src_buffer, 4, subSample, rgba_buffer,
-                    _width, 0, _height, TJPF_RGBA, flags);
-        return rgba_buffer;
-    }
-
     bool stop() override {
         //7-Stop
         LOGD(TAG, "DecoderSw: stop success")
@@ -198,15 +170,10 @@ public:
             tjFree(out_buffer);
             out_buffer = nullptr;
         }
-        if (rgba_buffer != NULL) {
-            tjFree(rgba_buffer);
-            rgba_buffer = nullptr;
-        }
         if (handle != NULL) {
             tjDestroy(handle);
             handle = nullptr;
         }
-        width = height = 0;
         _width = _height = 0;
         flags = subSample = colorSpace = 0;
         LOGD(TAG, "DecoderSw: destroy success")
@@ -277,19 +244,6 @@ uint8_t *DecoderFactory::convert2YUV(void *raw_buffer, unsigned long raw_size) {
         LOGW(TAG, "convert2YUV error: %d", onAction())
         return NULL;
     }
-}
-
-uint8_t *DecoderFactory::convert2RGBA(uint8_t *src_buffer, unsigned long src_size) {
-    if (LIKELY(ACTION_RUN == onAction())) {
-        if (LIKELY(src_buffer)) {
-            return decoder->convert2RGBA(src_buffer, src_size);
-        } else {
-            LOGW(TAG, "convert2RGBA src buffer is null")
-        }
-    } else {
-        LOGW(TAG, "convert2RGBA error: %d", onAction())
-    }
-    return NULL;
 }
 
 bool DecoderFactory::stop() {

@@ -9,10 +9,9 @@
 
 typedef enum {
     PIXEL_FORMAT_NV12   = 1, //yvu
-    PIXEL_FORMAT_YUV422 = 2, //uyvy
+    PIXEL_FORMAT_YUV422 = 2, //yuv
     PIXEL_FORMAT_YUYV   = 3, //yuyv
     PIXEL_FORMAT_DEPTH  = 4, //uint16
-    PIXEL_FORMAT_RGBA   = 5, //rgba
     PIXEL_FORMAT_ERROR  = 0,
 } PixelFormat;
 
@@ -30,7 +29,6 @@ public:
     virtual bool create(int width, int height) = 0;
     virtual bool start() = 0;
     virtual uint8_t* convert2YUV(void *raw_buffer, unsigned long raw_size) = 0;
-    virtual uint8_t* convert2RGBA(uint8_t *src_buffer, unsigned long src_size) = 0;
     virtual bool stop() = 0;
     virtual void destroy() = 0;
 };
@@ -47,7 +45,6 @@ public:
     PixelFormat getPixelFormat();
     bool start();
     uint8_t* convert2YUV(void *raw_buffer, unsigned long raw_size);
-    uint8_t* convert2RGBA(uint8_t *src_buffer, unsigned long src_size);
     bool stop();
     void destroy();
 };

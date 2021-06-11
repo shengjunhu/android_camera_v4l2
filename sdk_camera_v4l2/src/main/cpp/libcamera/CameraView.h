@@ -14,12 +14,17 @@ private:
     int pixelWidth;
     int pixelHeight;
     int pixelFormat;
-    int pixelStride;
-    int lineSize;
+    int stride_width;
+    int stride_rgba;
+    int stride_uv;
+    int start_uv;
+    int start_u;
+    int start_v;
+    uint8_t *yuv422;
     size_t frameSize;
-    size_t pixelSize;
     ANativeWindow *window;
-    void renderRGBA(const uint8_t *data);
+    void renderNV12(const uint8_t *data);
+    void renderYUV422(const uint8_t *data);
     void renderYUYV(const uint8_t *data);
     void renderDepth(const uint8_t *data);
 

@@ -108,8 +108,16 @@ void *CameraAPI::loopThread(void *args) {
     pthread_exit(NULL);
 }
 
-uint64_t time0 = 0;
-uint64_t time1 = 0;
+//uint64_t time0 = 0;
+//uint64_t time1 = 0;
+
+//Data->Save
+/*FILE *fp = fopen("/sdcard/1280x800.yuv", "wb");
+if (fp) {
+   fwrite(out, 1, pixelBytes,fp);
+   fclose(fp);
+   LOGD(TAG,"Capture one frame saved in /sdcard/1280x800.yuv");
+}*/
 
 void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
     fd_set fds;
@@ -133,23 +141,15 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
             //time1 = timeMs();
 
             //MJPEG->NV12/YUV422
-            void *start = camera->buffers[buffer.index].start;
-            uint8_t *data = camera->decoder->convert2YUV(start, buffer.bytesused);
+            uint8_t *data = camera->decoder->convert2YUV(camera->buffers[buffer.index].start, buffer.bytesused);
             //LOGD(TAG, "decodeTime=%lld", timeMs() - time1)
 
             //Render->RGBA
-            renderFrame(camera->decoder->convert2RGBA(data, pixelBytes));
+            renderFrame(data);
 
             //Data->Java
             sendFrame(env, data);
 
-            //Data->Save
-            /*FILE *fp = fopen("/sdcard/1280x800.yuv", "wb");
-            if (fp) {
-               fwrite(out, 1, pixelBytes,fp);
-               fclose(fp);
-               LOGD(TAG,"Capture one frame saved in /sdcard/1280x800.yuv");
-            }*/
         } else {
             //LOGD(TAG, "yuyv interval time = %lld", timeMs() - time0)
             //time0 = timeMs();
@@ -300,8 +300,7 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
             out_buffer = (uint8_t *) calloc(1, pixelBytes);
         } else {
             decoder = new DecoderFactory(width, height);
-            PixelFormat pixelFormat = decoder->getPixelFormat();
-            if (pixelFormat == PIXEL_FORMAT_NV12) {
+            if (PIXEL_FORMAT_NV12 == decoder->getPixelFormat()) {
                 pixelBytes = width * height * 3 / 2;
             } else {
                 pixelBytes = width * height * 2;
@@ -372,14 +371,14 @@ ActionInfo CameraAPI::setFrameCallback(JNIEnv *env, jobject frame_callback) {
 
 ActionInfo CameraAPI::setPreview(ANativeWindow *window) {
     if (STATUS_INIT == getStatus()) {
-        if (preview) {
+        if (preview != NULL) {
             preview->destroy();
             SAFE_DELETE(preview);
         }
-        if (LIKELY(window)) {
+        if (LIKELY(window != NULL)) {
             PixelFormat pixelFormat = PIXEL_FORMAT_ERROR;
             if (decoder != NULL) {
-                pixelFormat = PIXEL_FORMAT_RGBA;
+                pixelFormat = decoder->getPixelFormat();
             } else if (frameFormat == FRAME_FORMAT_YUYV) {
                 pixelFormat = PIXEL_FORMAT_YUYV;
             } else if (frameFormat == FRAME_FORMAT_DEPTH) {
