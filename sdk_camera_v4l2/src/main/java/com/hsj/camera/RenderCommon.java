@@ -32,10 +32,10 @@ final class RenderCommon implements IRender {
      * 顶点坐标
      */
     private static final float VERTEX_BUFFER[] = {
-            -1.0f,  1.0f,  //top left
+            -1.0f, 1.0f,  //top left
             -1.0f, -1.0f,  //bottom left
-             1.0f,  1.0f,  //top right
-             1.0f, -1.0f,  //bottom left
+            1.0f, 1.0f,  //top right
+            1.0f, -1.0f,  //bottom left
     };
 
     /*
@@ -56,8 +56,6 @@ final class RenderCommon implements IRender {
     private FloatBuffer textureBuffer;
     //纹理
     private int[] textures = new int[1];
-    //预览
-    private SurfaceTexture surfaceTexture;
 
     public RenderCommon(GLSurfaceView glSurfaceView, int frameW, int frameH) {
         this.glSurfaceView = glSurfaceView;
@@ -79,19 +77,21 @@ final class RenderCommon implements IRender {
 
     //GLSurfaceView
     private GLSurfaceView glSurfaceView;
+    private SurfaceTexture surfaceTexture;
+    private ISurfaceCallback callback;
 
     @Override
-    public Surface getSurface() {
-        if (this.surfaceTexture != null) {
-            this.surfaceTexture.release();
-            this.surfaceTexture = null;
+    public synchronized void setSurfaceCallback(ISurfaceCallback callback) {
+        this.callback = callback;
+        if (this.callback != null) {
+            if (this.surfaceTexture != null) {
+                this.callback.onSurface(new Surface(this.surfaceTexture));
+            } else if (this.textures[0] != 0) {
+                this.surfaceTexture = new SurfaceTexture(this.textures[0]);
+                this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
+                this.callback.onSurface(new Surface(this.surfaceTexture));
+            }
         }
-        if (this.textures[0] != 0) {
-            this.surfaceTexture = new SurfaceTexture(this.textures[0]);
-            this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
-            return new Surface(this.surfaceTexture);
-        }
-        return null;
     }
 
     @Override
@@ -99,12 +99,15 @@ final class RenderCommon implements IRender {
         if (isResume) {
             this.glSurfaceView.onResume();
         } else {
+            if (this.callback != null) {
+                this.callback.onSurface(null);
+            }
             if (this.surfaceTexture != null) {
                 this.surfaceTexture.release();
                 this.surfaceTexture = null;
             }
-            this.textures[0] = 0;
             this.glSurfaceView.onPause();
+            this.textures[0] = 0;
         }
     }
 
@@ -146,7 +149,7 @@ final class RenderCommon implements IRender {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            content.delete(0,content.length());
+            content.delete(0, content.length());
         } finally {
             if (is != null) {
                 try {
@@ -182,14 +185,14 @@ final class RenderCommon implements IRender {
         }
     }
 
-    private void createGlCondition() {
+    private synchronized void createGlCondition() {
         AssetManager assets = glSurfaceView.getContext().getResources().getAssets();
         //1.1-加载shader
-        String shaderVertex = getShader(assets,"camera_vertex.glsl");
+        String shaderVertex = getShader(assets, "camera_vertex.glsl");
         int vertexId = loadShader(GLES20.GL_VERTEX_SHADER, shaderVertex);
         checkGlError("loadShaderVertex");
         if (GLES20.GL_NONE == vertexId) return;
-        String shaderFragment = getShader(assets,"camera_fragment.glsl");
+        String shaderFragment = getShader(assets, "camera_fragment.glsl");
         int fragmentId = loadShader(GLES20.GL_FRAGMENT_SHADER, shaderFragment);
         checkGlError("loadShaderFragment");
         if (GLES20.GL_NONE == fragmentId) return;
@@ -232,6 +235,12 @@ final class RenderCommon implements IRender {
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_S, GL10.GL_CLAMP_TO_EDGE);
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_T, GL10.GL_CLAMP_TO_EDGE);
         checkGlError("createTexture");
+        //1.9-create surfaceTexture
+        if (this.callback != null) {
+            this.surfaceTexture = new SurfaceTexture(this.textures[0]);
+            this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
+            this.callback.onSurface(new Surface(this.surfaceTexture));
+        }
     }
 
     private synchronized void renderFrame() {

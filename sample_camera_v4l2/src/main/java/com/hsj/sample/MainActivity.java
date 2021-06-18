@@ -18,6 +18,7 @@ import com.hsj.camera.CameraAPI;
 import com.hsj.camera.CameraView;
 import com.hsj.camera.IFrameCallback;
 import com.hsj.camera.IRender;
+import com.hsj.camera.ISurfaceCallback;
 
 import java.io.DataOutputStream;
 import java.util.HashMap;
@@ -28,7 +29,7 @@ import java.util.HashMap;
  * @Class:MainActivity
  * @Desc:
  */
-public final class MainActivity extends AppCompatActivity {
+public final class MainActivity extends AppCompatActivity implements ISurfaceCallback {
 
     private static final String TAG = "MainActivity";
     //RGB: Usb camera productId and vendorId
@@ -47,17 +48,19 @@ public final class MainActivity extends AppCompatActivity {
     private CameraAPI cameraRGB, cameraIR;
     //IRender
     private IRender render;
+    private Surface surface;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        findViewById(R.id.btn_create).setOnClickListener(v->create());
-        findViewById(R.id.btn_start).setOnClickListener(v->start());
-        findViewById(R.id.btn_stop).setOnClickListener(v->stop());
-        findViewById(R.id.btn_destroy).setOnClickListener(v->destroy());
+        findViewById(R.id.btn_create).setOnClickListener(v -> create());
+        findViewById(R.id.btn_start).setOnClickListener(v -> start());
+        findViewById(R.id.btn_stop).setOnClickListener(v -> stop());
+        findViewById(R.id.btn_destroy).setOnClickListener(v -> destroy());
         CameraView cameraView = findViewById(R.id.preview);
         render = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.BEAUTY);
+        render.setSurfaceCallback(this);
 
         //Print usb video productId and vendorId
         UsbManager mUsbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
@@ -68,7 +71,7 @@ public final class MainActivity extends AppCompatActivity {
 
         //Request /dev/video* permission
         boolean result = requestPermission();
-        if (!result) Log.e(TAG,"Request permission failed");
+        if (!result) Log.e(TAG, "Request permission failed");
     }
 
     @Override
@@ -101,32 +104,6 @@ public final class MainActivity extends AppCompatActivity {
 
 //==================================================================================================
 
-    private boolean requestPermission() {
-        boolean result;
-        Process process = null;
-        DataOutputStream dos = null;
-        try {
-            process = Runtime.getRuntime().exec("su");
-            dos = new DataOutputStream(process.getOutputStream());
-            dos.writeBytes("chmod 666 /dev/video*\n");
-            dos.writeBytes("exit\n");
-            dos.flush();
-            result = (process.waitFor() == 0);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result = false;
-        } finally {
-            try {
-                if (dos != null) {dos.close();}
-                if (process != null) {process.destroy();}
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        Log.d(TAG, "request video rw permission: " + result);
-        return result;
-    }
-
     private void create() {
         if (this.cameraRGB == null) {
             this.cameraRGB = new CameraAPI();
@@ -153,7 +130,9 @@ public final class MainActivity extends AppCompatActivity {
         if (this.cameraRGB == null) {
             showToast("please open camera rgb");
         } else {
-            this.cameraRGB.setPreview(render.getSurface());
+            if (surface != null) {
+                this.cameraRGB.setPreview(surface);
+            }
             this.cameraRGB.setFrameCallback(rgbCallback);
             this.cameraRGB.start();
         }
@@ -165,7 +144,9 @@ public final class MainActivity extends AppCompatActivity {
             //this.cameraIR.setAutoExposure(false);
             //625->5ms, 312->4ms, 156->3.0ms, 78->2.5ms, 39->1.8ms, 20->1.4ms, 10->1.0ms, 5->0.6ms, 2->0.20ms, 1->0.06ms
             //this.cameraIR.setExposureLevel(156);
-            //this.cameraIR.setPreview(render.getSurface());
+            /*if (surface != null){
+                this.cameraIR.setPreview(this.surface);
+            }*/
             this.cameraIR.start();
         }
     }
@@ -190,11 +171,49 @@ public final class MainActivity extends AppCompatActivity {
         this.cameraIR = null;
     }
 
+    @Override
+    public void onSurface(Surface surface) {
+        if (surface == null) stop();
+        this.surface = surface;
+    }
+
+    private boolean requestPermission() {
+        boolean result;
+        Process process = null;
+        DataOutputStream dos = null;
+        try {
+            process = Runtime.getRuntime().exec("su");
+            dos = new DataOutputStream(process.getOutputStream());
+            dos.writeBytes("chmod 666 /dev/video*\n");
+            dos.writeBytes("exit\n");
+            dos.flush();
+            result = (process.waitFor() == 0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            result = false;
+        } finally {
+            try {
+                if (dos != null) {
+                    dos.close();
+                }
+                if (process != null) {
+                    process.destroy();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        Log.d(TAG, "request video rw permission: " + result);
+        return result;
+    }
+
 //==================================================================================================
 
-    private final IFrameCallback rgbCallback = frame -> {};
+    private final IFrameCallback rgbCallback = frame -> {
+    };
 
-    private final IFrameCallback irCallback = frame -> {};
+    private final IFrameCallback irCallback = frame -> {
+    };
 
 //==================================================================================================
 

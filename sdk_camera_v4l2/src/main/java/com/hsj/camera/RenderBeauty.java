@@ -57,8 +57,6 @@ final class RenderBeauty implements IRender {
     private FloatBuffer textureBuffer;
     //纹理
     private int[] textures = new int[1];
-    //预览
-    private SurfaceTexture surfaceTexture;
 
     public RenderBeauty(GLSurfaceView glSurfaceView, int frameW, int frameH) {
         this.glSurfaceView = glSurfaceView;
@@ -80,19 +78,21 @@ final class RenderBeauty implements IRender {
 
     //GLSurfaceView
     private GLSurfaceView glSurfaceView;
+    private SurfaceTexture surfaceTexture;
+    private ISurfaceCallback callback;
 
     @Override
-    public Surface getSurface() {
-        if (this.surfaceTexture != null) {
-            this.surfaceTexture.release();
-            this.surfaceTexture = null;
+    public synchronized void setSurfaceCallback(ISurfaceCallback callback) {
+        this.callback = callback;
+        if (this.callback != null) {
+            if (this.surfaceTexture != null) {
+                this.callback.onSurface(new Surface(this.surfaceTexture));
+            } else if (this.textures[0] != 0) {
+                this.surfaceTexture = new SurfaceTexture(this.textures[0]);
+                this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
+                this.callback.onSurface(new Surface(this.surfaceTexture));
+            }
         }
-        if (this.textures[0] != 0) {
-            this.surfaceTexture = new SurfaceTexture(this.textures[0]);
-            this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
-            return new Surface(this.surfaceTexture);
-        }
-        return null;
     }
 
     @Override
@@ -100,12 +100,15 @@ final class RenderBeauty implements IRender {
         if (isResume) {
             this.glSurfaceView.onResume();
         } else {
+            if (this.callback != null) {
+                this.callback.onSurface(null);
+            }
             if (this.surfaceTexture != null) {
                 this.surfaceTexture.release();
                 this.surfaceTexture = null;
             }
-            this.textures[0] = 0;
             this.glSurfaceView.onPause();
+            this.textures[0] = 0;
         }
     }
 
@@ -183,7 +186,7 @@ final class RenderBeauty implements IRender {
         }
     }
 
-    private void createGlCondition() {
+    private synchronized void createGlCondition() {
         AssetManager assets = glSurfaceView.getContext().getResources().getAssets();
         //1.1-加载shader
         String shaderVertex = getShader(assets, "beauty_vertex.glsl");
@@ -233,6 +236,12 @@ final class RenderBeauty implements IRender {
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_S, GL10.GL_CLAMP_TO_EDGE);
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GL10.GL_TEXTURE_WRAP_T, GL10.GL_CLAMP_TO_EDGE);
         checkGlError("createTexture");
+        //1.9-create surfaceTexture
+        if (this.callback != null) {
+            this.surfaceTexture = new SurfaceTexture(this.textures[0]);
+            this.surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> glSurfaceView.requestRender());
+            this.callback.onSurface(new Surface(this.surfaceTexture));
+        }
     }
 
     private synchronized void renderFrame() {
