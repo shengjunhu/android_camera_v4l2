@@ -5,6 +5,10 @@
 #include "Common.h"
 #include <ctime>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static JavaVM *jvm;
 
 uint64_t timeMs() {
@@ -38,3 +42,6 @@ JNIEnv *getEnv() {
     }
 }
 
+#ifdef __cplusplus
+}  // extern "C"
+#endif

@@ -5,6 +5,10 @@
 #ifndef ANDROID_CAMERA_V4L2_NATIVEAPI_H
 #define ANDROID_CAMERA_V4L2_NATIVEAPI_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum ActionInfo{
     ACTION_SUCCESS                = 0,
     ACTION_ERROR_CREATE           = 9,
@@ -24,5 +28,9 @@ typedef enum ActionInfo{
     ACTION_ERROR_DESTROY          = 60,
     ACTION_ERROR_RELEASE          = 70
 }actionInfo;
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif //ANDROID_CAMERA_V4L2_NATIVEAPI_H

@@ -10,6 +10,10 @@
 #include "CameraView.h"
 #include "DecoderFactory.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     STATUS_CREATE   = 0,
     STATUS_OPEN     = 1,
@@ -36,9 +40,9 @@ private:
     int frameFormat;
 
     size_t pixelBytes;
-    uint8_t *out_buffer;
-    VideoBuffer *buffers;
-    DecoderFactory *decoder;
+    uint8_t* out_buffer;
+    VideoBuffer* buffers;
+    DecoderFactory* decoder;
 
     CameraView *preview;
     jobject frameCallback;
@@ -46,6 +50,7 @@ private:
 
     pthread_t thread_camera;
     volatile StatusInfo status;
+    inline const StatusInfo getStatus() const;
 
     ActionInfo prepareBuffer();
     static void *loopThread(void *args);
@@ -56,8 +61,7 @@ private:
 public:
     CameraAPI();
     ~CameraAPI();
-    inline const StatusInfo getStatus() const;
-    ActionInfo open(unsigned int pid, unsigned int vid);
+    ActionInfo connect(unsigned int pid, unsigned int vid);
     ActionInfo autoExposure(bool isAuto);
     ActionInfo updateExposure(unsigned int level);
     ActionInfo setFrameSize(int width, int height, int frame_format);
@@ -68,5 +72,9 @@ public:
     ActionInfo close();
     ActionInfo destroy();
 };
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif //ANDROID_CAMERA_V4L2_CAMERAAPI_H

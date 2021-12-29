@@ -82,7 +82,7 @@ final class RenderDepth implements IRender {
     private ISurfaceCallback callback;
 
     @Override
-    public synchronized void setSurfaceCallback(ISurfaceCallback callback) {
+    public  void setSurfaceCallback(ISurfaceCallback callback) {
         this.callback = callback;
         if (this.callback != null) {
             if (this.surfaceTexture != null) {
@@ -96,19 +96,19 @@ final class RenderDepth implements IRender {
     }
 
     @Override
-    public synchronized void onRender(boolean isResume) {
+    public void onRender(boolean isResume) {
         if (isResume) {
             this.glSurfaceView.onResume();
         } else {
             if (this.callback != null) {
                 this.callback.onSurface(null);
             }
+            this.glSurfaceView.onPause();
+            this.textures[0] = 0;
             if (this.surfaceTexture != null) {
                 this.surfaceTexture.release();
                 this.surfaceTexture = null;
             }
-            this.glSurfaceView.onPause();
-            this.textures[0] = 0;
         }
     }
 
@@ -129,7 +129,7 @@ final class RenderDepth implements IRender {
     @Override
     public void onDrawFrame(GL10 gl) {
         //3-render frame
-        if (this.surfaceTexture != null) {
+        if (this.textures[0] != 0) {
             this.surfaceTexture.updateTexImage();
             renderFrame();
         }
@@ -186,7 +186,7 @@ final class RenderDepth implements IRender {
         }
     }
 
-    private synchronized void createGlCondition() {
+    private  void createGlCondition() {
         //1.0-disable function
         GLES20.glDisable(GLES20.GL_DITHER);
         GLES20.glDisable(GLES20.GL_CULL_FACE);
@@ -252,7 +252,7 @@ final class RenderDepth implements IRender {
         }
     }
 
-    private synchronized void renderFrame() {
+    private  void renderFrame() {
         //3.1-清空画布
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);

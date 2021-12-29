@@ -8,12 +8,14 @@
 #include "Common.h"
 #include "CameraView.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TAG "CameraView"
 #define HIST_SIZE 0xFFFF
 
 typedef uint16_t DepthPixel;
-
-//==================================================================================================
 
 static unsigned int *histogram;
 
@@ -35,8 +37,7 @@ static void calculateDepthHist(const DepthPixel *depth, const unsigned long size
     }
     if (numberOfPoints != 0) {
         for (index = 1; index < HIST_SIZE; index++) {
-            histogram[index] = (unsigned int) (256 * (1.0f -
-                                                      ((float) histogram[index] / numberOfPoints)));
+            histogram[index] = (unsigned int) (256 * (1.0f -((float) histogram[index] / numberOfPoints)));
         }
     }
 }
@@ -50,7 +51,6 @@ CameraView::CameraView(int pixelWidth, int pixelHeight,
         pixelWidth(pixelWidth),
         pixelHeight(pixelHeight),
         pixelFormat(pixelFormat),
-        stride_rgba(pixelWidth * 4),
         stride_width(pixelWidth * 2) {
     if (pixelFormat == PIXEL_FORMAT_NV12) {
         start_uv = pixelWidth * pixelHeight;
@@ -67,7 +67,7 @@ CameraView::CameraView(int pixelWidth, int pixelHeight,
         frameSize = pixelWidth * pixelHeight * 2;
         histogram = (unsigned int *) malloc(HIST_SIZE * sizeof(unsigned int));
     } else {
-        LOGE(TAG, "PixelFormat error: %d", pixelFormat)
+        LOGE(TAG, "PixelFormat error: %d", pixelFormat);
     }
     ANativeWindow_setBuffersGeometry(window, pixelWidth, pixelHeight, WINDOW_FORMAT_RGBA_8888);
 }
@@ -92,16 +92,21 @@ void CameraView::render(uint8_t *data) {
             break;
         case PIXEL_FORMAT_ERROR:
         default:
-            LOGE(TAG, "Render pixelFormat is error: %d", pixelFormat)
+            LOGE(TAG, "Render pixelFormat is error: %d", pixelFormat);
             break;
     }
 }
 
-void CameraView::stop() {
+void CameraView::pause() {
     ANativeWindow_Buffer buffer;
     if (LIKELY(ANativeWindow_lock(window, &buffer, nullptr) == 0)) {
         auto *dest = (uint8_t *) buffer.bits;
-        memset(dest, 0, buffer.width * buffer.height * 4);
+        const size_t size_line = buffer.width * 4;
+        const int size_stride = buffer.stride * 4;
+        for (int i = 0; i < buffer.height; i++) {
+            memset(dest, 0, size_line);
+            dest += size_stride;
+        }
         ANativeWindow_unlockAndPost(window);
     }
 }
@@ -117,7 +122,6 @@ void CameraView::destroy() {
     pixelHeight = 0;
     pixelFormat = 0;
     stride_width = 0;
-    stride_rgba = 0;
     stride_uv = 0;
     frameSize = 0;
     stride_uv = 0;
@@ -135,7 +139,7 @@ void CameraView::renderNV12(const uint8_t *data) {
         auto *dest = (uint8_t *) buffer.bits;
         libyuv::NV12ToABGR(data, buffer.width,
                            data + start_uv, buffer.width,
-                           dest, stride_rgba,
+                           dest, buffer.stride * 4,
                            buffer.width, buffer.height);
         ANativeWindow_unlockAndPost(window);
     }
@@ -149,7 +153,7 @@ void CameraView::renderYUV422(const uint8_t *data) {
         libyuv::I422ToABGR(data, buffer.width,
                            data + start_u, stride_uv,
                            data + start_v, stride_uv,
-                           dest, stride_rgba,
+                           dest, buffer.stride * 4,
                            buffer.width, buffer.height);
         ANativeWindow_unlockAndPost(window);
     }
@@ -168,7 +172,7 @@ void CameraView::renderYUYV(const uint8_t *data) {
         libyuv::I422ToABGR(yuv422, buffer.width,
                            yuv422 + start_u, stride_uv,
                            yuv422 + start_v, stride_uv,
-                           dest, stride_rgba,
+                           dest, buffer.stride * 4,
                            buffer.width, buffer.height);
         ANativeWindow_unlockAndPost(window);
     }
@@ -183,7 +187,7 @@ void CameraView::renderDepth(const uint8_t *data) {
     if (LIKELY(0 == ANativeWindow_lock(window, &buffer, nullptr))) {
         auto *dest = (uint8_t *) buffer.bits;
         for (int h = 0; h < buffer.height; ++h) {
-            uint8_t *texture = dest + h * stride_rgba;
+            uint8_t *texture = dest + h * buffer.stride * 4;
             const auto *depth = (const DepthPixel *) (data + h * stride_width);
             for (int w = 0; w < buffer.width; ++w, ++depth, texture += 4) {
                 unsigned int val = histogram[*depth];
@@ -197,4 +201,6 @@ void CameraView::renderDepth(const uint8_t *data) {
     }
 }
 
-
+#ifdef __cplusplus
+}  // extern "C"
+#endif

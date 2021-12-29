@@ -18,7 +18,7 @@ static void setFieldLong(JNIEnv *env, jobject obj, const char *fieldName, jlong 
     if (LIKELY(field)) {
         env->SetLongField(obj, field, value);
     } else {
-        LOGE(TAG, "setFieldLong: failed '%s' not found", fieldName)
+        LOGE(TAG, "setFieldLong: failed '%s' not found", fieldName);
     }
     env->DeleteLocalRef(clazz);
 }
@@ -34,9 +34,9 @@ static ActionInfo nativeCreate(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, in
     auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_RELEASE;
     if (LIKELY(camera)) {
-        status = camera->open(productId, vendorId);
+        status = camera->connect(productId, vendorId);
     }
-    LOGD(TAG, "camera->open(): %d", status)
+    LOGD(TAG, "camera->open(): %d", status);
     return status;
 }
 
@@ -46,7 +46,7 @@ static ActionInfo nativeAutoExposure(JNIEnv *env, jobject thiz, CAMERA_ID camera
     if (LIKELY(camera)) {
         status = camera->autoExposure(isAuto);
     }
-    LOGD(TAG, "camera->autoExposure(): %d", status)
+    LOGD(TAG, "camera->autoExposure(): %d", status);
     return status;
 }
 
@@ -58,10 +58,10 @@ static ActionInfo nativeSetExposure(JNIEnv *env, jobject thiz, CAMERA_ID cameraI
             status = camera->updateExposure(level);
         } else {
             status = ACTION_ERROR_SET_EXPOSURE;
-            LOGE(TAG, "camera->updateExposure() failed: level must more than 0")
+            LOGE(TAG, "camera->updateExposure() failed: level must more than 0");
         }
     }
-    LOGD(TAG, "camera->updateExposure(): %d", status)
+    LOGD(TAG, "camera->updateExposure(): %d", status);
     return status;
 }
 
@@ -72,7 +72,7 @@ static ActionInfo nativeFrameCallback(JNIEnv *env, jobject thiz, CAMERA_ID camer
         jobject _frame_callback = env->NewGlobalRef(frame_callback);
         status = camera->setFrameCallback(env, _frame_callback);
     }
-    LOGD(TAG, "camera->setFrameCallback(): %d", status)
+    LOGD(TAG, "camera->setFrameCallback(): %d", status);
     return status;
 }
 
@@ -84,10 +84,10 @@ static ActionInfo nativeFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId,
             status = camera->setFrameSize(width, height, frameFormat);
         } else {
             status = ACTION_ERROR_SET_W_H;
-            LOGE(TAG, "camera->setFrameSize() failed: width and height must more than 0")
+            LOGE(TAG, "camera->setFrameSize() failed: width and height must more than 0");
         }
     }
-    LOGD(TAG, "camera->setFrameSize(): %d", status)
+    LOGD(TAG, "camera->setFrameSize(): %d", status);
     return status;
 }
 
@@ -97,7 +97,7 @@ static ActionInfo nativePreview(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, j
     if (LIKELY(camera)) {
         status = camera->setPreview(surface ? ANativeWindow_fromSurface(env, surface) : NULL);
     }
-    LOGD(TAG, "camera->setPreview(): %d", status)
+    LOGD(TAG, "camera->setPreview(): %d", status);
     return status;
 }
 
@@ -107,7 +107,7 @@ static ActionInfo nativeStart(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
     if (LIKELY(camera)) {
         status = camera->start();
     }
-    LOGD(TAG, "camera->start(): %d", status)
+    LOGD(TAG, "camera->start(): %d", status);
     return status;
 }
 
@@ -117,7 +117,7 @@ static ActionInfo nativeStop(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
     if (LIKELY(camera)) {
         status = camera->stop();
     }
-    LOGD(TAG, "camera->stop(): %d", status)
+    LOGD(TAG, "camera->stop(): %d", status);
     return status;
 }
 
@@ -127,11 +127,11 @@ static ActionInfo nativeDestroy(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
     ActionInfo status = ACTION_ERROR_RELEASE;
     if (LIKELY(camera)) {
         status = camera->close();
-        LOGD(TAG, "camera->close(): %d", status)
+        LOGD(TAG, "camera->close(): %d", status);
         status = camera->destroy();
         SAFE_DELETE(camera)
     }
-    LOGD(TAG, "camera->destroy(): %d", status)
+    LOGD(TAG, "camera->destroy(): %d", status);
     return status;
 }
 

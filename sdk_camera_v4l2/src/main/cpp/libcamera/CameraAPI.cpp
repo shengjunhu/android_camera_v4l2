@@ -17,6 +17,10 @@
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TAG "CameraAPI"
 #define MAX_BUFFER_COUNT 4
 #define MAX_DEV_VIDEO_INDEX 9
@@ -53,7 +57,7 @@ ActionInfo CameraAPI::prepareBuffer() {
     buffer1.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buffer1.memory = V4L2_MEMORY_MMAP;
     if (0 > ioctl(fd, VIDIOC_REQBUFS, &buffer1)) {
-        LOGE(TAG, "prepareBuffer: ioctl VIDIOC_REQBUFS failed: %s", strerror(errno))
+        LOGE(TAG, "prepareBuffer: ioctl VIDIOC_REQBUFS failed: %s", strerror(errno));
         return ACTION_ERROR_START;
     }
 
@@ -66,14 +70,13 @@ ActionInfo CameraAPI::prepareBuffer() {
         buffer2.memory = V4L2_MEMORY_MMAP;
         buffer2.index = i;
         if (0 > ioctl(fd, VIDIOC_QUERYBUF, &buffer2)) {
-            LOGE(TAG, "prepareBuffer: ioctl VIDIOC_QUERYBUF failed: %s", strerror(errno))
+            LOGE(TAG, "prepareBuffer: ioctl VIDIOC_QUERYBUF failed: %s", strerror(errno));
             return ACTION_ERROR_START;
         }
         buffers[i].length = buffer2.length;
-        buffers[i].start = mmap(NULL, buffer2.length,
-                                PROT_READ | PROT_WRITE, MAP_SHARED, fd, buffer2.m.offset);
+        buffers[i].start = mmap(NULL, buffer2.length,PROT_READ | PROT_WRITE, MAP_SHARED, fd, buffer2.m.offset);
         if (MAP_FAILED == buffers[i].start) {
-            LOGE(TAG, "prepareBuffer: ioctl VIDIOC_QUERYBUFfailed2")
+            LOGE(TAG, "prepareBuffer: ioctl VIDIOC_QUERYBUF failed2");
             return ACTION_ERROR_START;
         }
     }
@@ -86,7 +89,7 @@ ActionInfo CameraAPI::prepareBuffer() {
         buffer3.memory = V4L2_MEMORY_MMAP;
         buffer3.index = i;
         if (0 > ioctl(fd, VIDIOC_QBUF, &buffer3)) {
-            LOGE(TAG, "prepareBuffer: ioctl VIDIOC_QBUF failed: %s", strerror(errno))
+            LOGE(TAG, "prepareBuffer: ioctl VIDIOC_QBUF failed: %s", strerror(errno));
             return ACTION_ERROR_START;
         }
     }
@@ -111,31 +114,25 @@ void *CameraAPI::loopThread(void *args) {
 //uint64_t time0 = 0;
 //uint64_t time1 = 0;
 
-//Data->Save
-/*FILE *fp = fopen("/sdcard/1280x800.yuv", "wb");
-if (fp) {
-   fwrite(out, 1, pixelBytes,fp);
-   fclose(fp);
-   LOGD(TAG,"Capture one frame saved in /sdcard/1280x800.yuv");
-}*/
-
 void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
     fd_set fds;
     struct timeval tv;
     struct v4l2_buffer buffer;
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buffer.memory = V4L2_MEMORY_MMAP;
-    while (LIKELY(STATUS_RUN == camera->getStatus())) {
+    const int fd_count = camera->fd + 1;
+    while (STATUS_RUN == camera->getStatus()) {
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
         FD_ZERO (&fds);
         FD_SET (camera->fd, &fds);
-        tv.tv_sec = 2000;
-        tv.tv_usec = 0;
-        if (0 >= select(camera->fd + 1, &fds, NULL, NULL, &tv)) {
-            LOGW(TAG, "Loop frame failed: %s", strerror(errno))
+        if (0 >= select(fd_count, &fds, NULL, NULL, &tv)) {//非阻塞，0超时，-1错误
+            LOGE(TAG, "Loop frame failed: %s", strerror(errno));
             continue;
         } else if (0 > ioctl(camera->fd, VIDIOC_DQBUF, &buffer)) {
-            LOGW(TAG, "Loop frame failed: %s", strerror(errno))
-            continue;
+            //TODO video/dev* disconnect, implement auto connect
+            LOGE(TAG, "Loop frame failed2: %s", strerror(errno));
+            break;
         } else if (camera->frameFormat == FRAME_FORMAT_MJPEG) {
             //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
             //time1 = timeMs();
@@ -164,7 +161,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
             sendFrame(env, out_buffer);
         }
         if (0 > ioctl(camera->fd, VIDIOC_QBUF, &buffer)) {
-            LOGW(TAG, "Loop frame: ioctl VIDIOC_QBUF %s", strerror(errno))
+            LOGW(TAG, "Loop frame: ioctl VIDIOC_QBUF %s", strerror(errno));
             continue;
         }
     }
@@ -189,7 +186,7 @@ void CameraAPI::sendFrame(JNIEnv *env, uint8_t *data) {
 
 //=======================================Public=====================================================
 
-ActionInfo CameraAPI::open(unsigned int target_pid, unsigned int target_vid) {
+ActionInfo CameraAPI::connect(unsigned int target_pid, unsigned int target_vid) {
     ActionInfo action = ACTION_SUCCESS;
     if (STATUS_CREATE == getStatus()) {
         std::string dev_video_name;
@@ -198,15 +195,15 @@ ActionInfo CameraAPI::open(unsigned int target_pid, unsigned int target_vid) {
             std::string modalias;
             int vid = 0, pid = 0;
             if (!(std::ifstream("/sys/class/video4linux/" + dev_video_name + "/device/modalias") >> modalias)) {
-                LOGD(TAG, "dev/%s : read modalias failed", dev_video_name.c_str())
+                LOGD(TAG, "dev/%s : read modalias failed", dev_video_name.c_str());
             } else if (modalias.size() < 14 || modalias.substr(0, 5) != "usb:v" || modalias[9] != 'p') {
-                LOGD(TAG, "dev/%s : format is not a usb of modalias", dev_video_name.c_str())
+                LOGD(TAG, "dev/%s : format is not a usb of modalias", dev_video_name.c_str());
             } else if (!(std::istringstream(modalias.substr(5, 4)) >> std::hex >> vid)) {
-                LOGD(TAG, "dev/%s : read vid failed", dev_video_name.c_str())
+                LOGD(TAG, "dev/%s : read vid failed", dev_video_name.c_str());
             } else if (!(std::istringstream(modalias.substr(10, 4)) >> std::hex >> pid)) {
-                LOGD(TAG, "dev/%s : read pid failed", dev_video_name.c_str())
+                LOGD(TAG, "dev/%s : read pid failed", dev_video_name.c_str());
             } else {
-                LOGD(TAG, "dev/%s : vid=%d, pid=%d", dev_video_name.c_str(), vid, pid)
+                LOGD(TAG, "dev/%s : vid=%d, pid=%d", dev_video_name.c_str(), vid, pid);
             }
             if (target_pid == pid && target_vid == vid) {
                 dev_video_name.insert(0, "dev/");
@@ -216,28 +213,28 @@ ActionInfo CameraAPI::open(unsigned int target_pid, unsigned int target_vid) {
             }
         }
         if (dev_video_name.empty()) {
-            LOGW(TAG, "open: no target device")
+            LOGW(TAG, "open: no target device");
             action = ACTION_ERROR_NO_DEVICE;
         } else {
             const char *deviceName = dev_video_name.data();
-            fd = ::open(deviceName, O_RDWR | O_NONBLOCK, 0);
+            fd = open(deviceName, O_CREAT | O_RDWR | O_NONBLOCK, S_IRWXU);
             if (0 > fd) {
-                LOGE(TAG, "open: %s failed, %s", deviceName, strerror(errno))
+                LOGE(TAG, "open: %s failed, %s", deviceName, strerror(errno));
                 action = ACTION_ERROR_OPEN_FAIL;
             } else {
                 struct v4l2_capability cap;
                 if (0 > ioctl(fd, VIDIOC_QUERYCAP, &cap)) {
-                    LOGE(TAG, "open: ioctl VIDIOC_QUERYCAP failed, %s", strerror(errno))
+                    LOGE(TAG, "open: ioctl VIDIOC_QUERYCAP failed, %s", strerror(errno));
                     ::close(fd);
                     action = ACTION_ERROR_START;
                 } else {
-                    LOGD(TAG, "open: %s succeed", deviceName)
+                    LOGD(TAG, "open: %s succeed", deviceName);
                     status = STATUS_OPEN;
                 }
             }
         }
     } else {
-        LOGW(TAG, "open: error status, %d", getStatus())
+        LOGW(TAG, "open: error status, %d", getStatus());
         action = ACTION_ERROR_CREATE_HAD;
     }
     return action;
@@ -250,14 +247,14 @@ ActionInfo CameraAPI::autoExposure(bool isAuto) {
         ctrl.id = V4L2_CID_EXPOSURE_AUTO;
         ctrl.value = isAuto ? V4L2_EXPOSURE_AUTO : V4L2_EXPOSURE_MANUAL;
         if (0 > ioctl(fd, VIDIOC_S_CTRL, &ctrl)) {
-            LOGW(TAG, "autoExposure: ioctl VIDIOC_S_CTRL failed, %s", strerror(errno))
+            LOGW(TAG, "autoExposure: ioctl VIDIOC_S_CTRL failed, %s", strerror(errno));
             return ACTION_ERROR_AUTO_EXPOSURE;
         } else {
-            LOGD(TAG, "autoExposure: success")
+            LOGD(TAG, "autoExposure: success");
             return ACTION_SUCCESS;
         }
     } else {
-        LOGW(TAG, "autoExposure: error status, %d", getStatus())
+        LOGW(TAG, "autoExposure: error status, %d", getStatus());
         return ACTION_ERROR_AUTO_EXPOSURE;
     }
 }
@@ -269,14 +266,14 @@ ActionInfo CameraAPI::updateExposure(unsigned int level) {
         ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
         ctrl.value = level;
         if (0 > ioctl(fd, VIDIOC_S_CTRL, &ctrl)) {
-            LOGE(TAG, "updateExposure: ioctl failed, %s", strerror(errno))
+            LOGE(TAG, "updateExposure: ioctl failed, %s", strerror(errno));
             return ACTION_ERROR_SET_EXPOSURE;
         } else {
-            LOGD(TAG, "updateExposure: success")
+            LOGD(TAG, "updateExposure: success");
             return ACTION_SUCCESS;
         }
     } else {
-        LOGW(TAG, "updateExposure: error status, %d", getStatus())
+        LOGW(TAG, "updateExposure: error status, %d", getStatus());
         return ACTION_ERROR_SET_EXPOSURE;
     }
 }
@@ -292,15 +289,19 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         format.fmt.pix.field = V4L2_FIELD_ANY;
         format.fmt.pix.pixelformat = frame_format ? V4L2_PIX_FMT_YUYV : V4L2_PIX_FMT_MJPEG;
         if (0 > ioctl(fd, VIDIOC_S_FMT, &format)) {
-            LOGW(TAG, "setFrameSize: ioctl set format failed, %s", strerror(errno))
+            LOGW(TAG, "setFrameSize: ioctl set format failed, %s", strerror(errno));
             return ACTION_ERROR_SET_W_H;
         }
-        if (frame_format) {
+        if (frame_format) { // YUYV
             pixelBytes = width * height * 2;
             out_buffer = (uint8_t *) calloc(1, pixelBytes);
-        } else {
-            decoder = new DecoderFactory(width, height);
-            if (PIXEL_FORMAT_NV12 == decoder->getPixelFormat()) {
+        } else { // MJPEG
+            decoder = new DecoderFactory();
+            if (0 != decoder->init(width, height)){
+                SAFE_DELETE(decoder);
+                LOGE(TAG, "DecoderFactory init failed");
+                return ACTION_ERROR_DECODER;
+            } else if (PIXEL_FORMAT_NV12 == decoder->getPixelFormat()) {
                 pixelBytes = width * height * 3 / 2;
             } else {
                 pixelBytes = width * height * 2;
@@ -318,7 +319,7 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
             parm.parm.capture.timeperframe.denominator = 10;
         }
         if (0 > ioctl(fd, VIDIOC_S_PARM, &parm)) {
-            LOGW(TAG, "setFrameSize: ioctl set fps failed, %s", strerror(errno))
+            LOGW(TAG, "setFrameSize: ioctl set fps failed, %s", strerror(errno));
         }
 
         //3-what function ?
@@ -337,7 +338,7 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         status = STATUS_INIT;
         return ACTION_SUCCESS;
     } else {
-        LOGW(TAG, "setFrameSize: error status, %d", getStatus())
+        LOGW(TAG, "setFrameSize: error status, %d", getStatus());
         return ACTION_ERROR_SET_W_H;
     }
 }
@@ -364,7 +365,7 @@ ActionInfo CameraAPI::setFrameCallback(JNIEnv *env, jobject frame_callback) {
         }
         return ACTION_SUCCESS;
     } else {
-        LOGW(TAG, "setFrameCallback: error status, %d", getStatus())
+        LOGW(TAG, "setFrameCallback: error status, %d", getStatus());
         return ACTION_ERROR_CALLBACK;
     }
 }
@@ -388,7 +389,7 @@ ActionInfo CameraAPI::setPreview(ANativeWindow *window) {
         }
         return ACTION_SUCCESS;
     } else {
-        LOGW(TAG, "setPreview: error status, %d", getStatus())
+        LOGW(TAG, "setPreview: error status, %d", getStatus());
         return ACTION_ERROR_SET_PREVIEW;
     }
 }
@@ -401,24 +402,22 @@ ActionInfo CameraAPI::start() {
             enum v4l2_buf_type type;
             type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
             if (0 > ioctl(fd, VIDIOC_STREAMON, &type)) {
-                LOGE(TAG, "start: ioctl VIDIOC_STREAMON failed, %s", strerror(errno))
+                LOGE(TAG, "start: ioctl VIDIOC_STREAMON failed, %s", strerror(errno));
             } else {
                 status = STATUS_RUN;
-                //2-start decoder
-                if (decoder != NULL) decoder->start();
                 //3-start thread loop frame
                 if (0 == pthread_create(&thread_camera, NULL, loopThread, (void *) this)) {
-                    LOGD(TAG, "start: success")
+                    LOGD(TAG, "start: success");
                     action = ACTION_SUCCESS;
                 } else {
-                    LOGE(TAG, "start: pthread_create failed")
+                    LOGE(TAG, "start: pthread_create failed");
                 }
             }
         } else {
-            LOGE(TAG, "start: error prepare buffer, %d", getStatus())
+            LOGE(TAG, "start: error prepare buffer, %d", getStatus());
         }
     } else {
-        LOGW(TAG, "start: error status, %d", getStatus())
+        LOGW(TAG, "start: error status, %d", getStatus());
     }
     return action;
 }
@@ -429,32 +428,30 @@ ActionInfo CameraAPI::stop() {
         status = STATUS_INIT;
         //1-stop thread
         if (0 == pthread_join(thread_camera, NULL)) {
-            LOGD(TAG, "stop: pthread_join success")
+            LOGD(TAG, "stop: pthread_join success");
         } else {
-            LOGE(TAG, "stop: pthread_join failed, %s", strerror(errno))
+            LOGE(TAG, "stop: pthread_join failed, %s", strerror(errno));
             action = ACTION_ERROR_STOP;
         }
-        //2-stop decoder
-        if (decoder != NULL) decoder->stop();
         //3-stop preview
-        if (preview != NULL) preview->stop();
+        if (preview) preview->pause();
         //4-stop stream
         enum v4l2_buf_type type;
         type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         if (0 > ioctl(fd, VIDIOC_STREAMOFF, &type)) {
-            LOGE(TAG, "stop: ioctl failed: %s", strerror(errno))
+            LOGE(TAG, "stop: ioctl failed: %s", strerror(errno));
             action = ACTION_ERROR_STOP;
         } else {
-            LOGD(TAG, "stop: ioctl VIDIOC_STREAMOFF success")
+            LOGD(TAG, "stop: ioctl VIDIOC_STREAMOFF success");
         }
         //5-release buffer
         for (int i = 0; i < MAX_BUFFER_COUNT; ++i) {
             if (0 != munmap(buffers[i].start, buffers[i].length)) {
-                LOGW(TAG, "stop: munmap failed")
+                LOGW(TAG, "stop: munmap failed");
             }
         }
     } else {
-        LOGW(TAG, "stop: error status, %d", getStatus())
+        LOGW(TAG, "stop: error status, %d", getStatus());
         action = ACTION_ERROR_STOP;
     }
     return action;
@@ -466,19 +463,16 @@ ActionInfo CameraAPI::close() {
         status = STATUS_CREATE;
         //1-close fd
         if (0 > ::close(fd)) {
-            LOGE(TAG, "close: failed, %s", strerror(errno))
+            LOGE(TAG, "close: failed, %s", strerror(errno));
             action = ACTION_ERROR_CLOSE;
         } else {
-            LOGD(TAG, "close: success")
+            LOGD(TAG, "close: success");
         }
         //2-release buffer
         SAFE_FREE(buffers)
         SAFE_FREE(out_buffer)
         //3-destroy decoder
-        if (decoder != NULL) {
-            decoder->destroy();
-            SAFE_DELETE(decoder)
-        }
+        SAFE_DELETE(decoder)
         //4-preview destroy
         if (preview != NULL) {
             preview->destroy();
@@ -492,7 +486,7 @@ ActionInfo CameraAPI::close() {
             frameCallback_onFrame = NULL;
         }
     } else {
-        LOGW(TAG, "close: error status, %d", getStatus())
+        LOGW(TAG, "close: error status, %d", getStatus());
     }
     return action;
 }
@@ -510,6 +504,10 @@ ActionInfo CameraAPI::destroy() {
     SAFE_FREE(buffers)
     SAFE_FREE(out_buffer)
     SAFE_DELETE(decoder)
-    LOGD(TAG, "destroy")
+    LOGD(TAG, "destroy");
     return ACTION_SUCCESS;
 }
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif

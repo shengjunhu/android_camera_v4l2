@@ -9,13 +9,16 @@
 #include "DecoderFactory.h"
 #include <android/native_window_jni.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 class CameraView {
 private:
     int pixelWidth;
     int pixelHeight;
     int pixelFormat;
     int stride_width;
-    int stride_rgba;
     int stride_uv;
     int start_uv;
     int start_u;
@@ -32,8 +35,12 @@ public:
     CameraView(int pixelWidth, int pixelHeight, PixelFormat pixelFormat, ANativeWindow *window);
     ~CameraView();
     void render(uint8_t *data);
-    void stop();
+    void pause();
     void destroy();
 };
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif //ANDROID_CAMERA_V4L2_CAMERAVIEW_H
