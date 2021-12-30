@@ -2,7 +2,7 @@
 android sample of v4l2 camera
 
 ### Image
-<img src="doc/img/screenshot.png" width="200px"/>
+<img src="doc/img/screenshot.png" width="320px"/>
 
 ### Sample
 | <img src="doc/img/qr_apk.png" width="260px" /> |
