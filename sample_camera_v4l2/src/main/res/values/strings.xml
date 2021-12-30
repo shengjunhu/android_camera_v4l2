@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">android_v4l2_camera</string>
+    <string name="txt_create">create</string>
+    <string name="txt_start">start</string>
+    <string name="txt_stop">stop</string>
+    <string name="txt_destroy">destroy</string>
+    <string name="btn_confirm">Confirm</string>
+    <string name="select_usb_device">Select Usb Device</string>
 </resources>

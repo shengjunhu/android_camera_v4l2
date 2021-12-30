@@ -13,17 +13,28 @@ android {
         testInstrumentationRunner rootProject.ext.dependencies.testInstrumentationRunner
     }
 
+    signingConfigs {
+        config {
+            keyAlias 'android'
+            keyPassword 'android'
+            storeFile file('android.jks')
+            storePassword 'android'
+        }
+    }
+
     buildTypes {
         debug {
             minifyEnabled false
+            signingConfig signingConfigs.config
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         release {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled false
+            shrinkResources false
             zipAlignEnabled true
             debuggable false
             jniDebuggable false
+            signingConfig signingConfigs.config
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -46,7 +57,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "CameraV4l2_v${variant.versionCode}.apk"
+            outputFileName = "android_camera_v4l2_v${variant.versionCode}.apk"
         }
     }
 
@@ -68,9 +79,8 @@ dependencies {
     implementation rootProject.ext.dependencies.core
     implementation rootProject.ext.dependencies.appcompat
     implementation rootProject.ext.dependencies.annotations
-    implementation rootProject.ext.dependencies.constraint_layout
 
-    //内存泄漏监控
+    //LeakCanary
     debugImplementation rootProject.ext.dependencies.leak_canary
 
     //sdk_camera_v4l2

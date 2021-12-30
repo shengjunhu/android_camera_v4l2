@@ -2,10 +2,10 @@
 android sample of v4l2 camera
 
 ### Image
-<img src="doc/img/screenshot_1.png" width="200px"/>
+<img src="doc/img/screenshot.png" width="200px"/>
 
 ### Sample
-| <img src="doc/img/android_logo.png" width="260px" /> |
+| <img src="doc/img/qr_apk.png" width="260px" /> |
 | :--------:                      |
 | Scan QR code or [Download][1]   |
 
@@ -36,4 +36,4 @@ Copyright (c) 2020 shengjunhu
 Please compliance with the MIT license
 ```
 
-[1]: https://github.com/shengjunhu/android_camera_v4l2/raw/master/doc/apk/sample_camera_v4l2_v21051216_debug.apk
+[1]: https://github.com/shengjunhu/android_camera_v4l2/raw/master/doc/apk/android_camera_v4l2.apk

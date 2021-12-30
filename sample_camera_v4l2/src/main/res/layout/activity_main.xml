@@ -6,20 +6,21 @@
     tools:context=".MainActivity">
 
     <com.hsj.camera.CameraView
-        android:id="@+id/preview"
+        android:id="@+id/cameraView"
         android:layout_width="320dp"
         android:layout_height="512dp"
         android:layout_marginTop="10dp"
         android:layout_centerHorizontal="true"/>
 
     <LinearLayout
+        android:id="@+id/ll"
         android:layout_width="match_parent"
         android:layout_height="50dp"
         android:layout_alignParentBottom="true"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="15dp"
         android:orientation="horizontal"
-        android:weightSum="4"
-        android:background="@android:color/transparent">
+        android:visibility="gone"
+        android:weightSum="4">
 
         <Button
             android:id="@+id/btn_create"
@@ -27,7 +28,7 @@
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
             android:layout_weight="1"
-            android:text="create"
+            android:text="@string/txt_create"
             android:textAllCaps="false" />
 
         <Button
@@ -36,7 +37,7 @@
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
             android:layout_weight="1"
-            android:text="start"
+            android:text="@string/txt_start"
             android:textAllCaps="false" />
 
         <Button
@@ -45,7 +46,7 @@
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
             android:layout_weight="1"
-            android:text="stop"
+            android:text="@string/txt_stop"
             android:textAllCaps="false" />
 
         <Button
@@ -55,7 +56,7 @@
             android:layout_marginStart="2dp"
             android:layout_marginEnd="2dp"
             android:layout_weight="1"
-            android:text="destroy"
+            android:text="@string/txt_destroy"
             android:textAllCaps="false" />
 
     </LinearLayout>

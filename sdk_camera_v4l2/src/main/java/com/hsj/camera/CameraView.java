@@ -38,7 +38,7 @@ public final class CameraView extends GLSurfaceView implements GLSurfaceView.Ren
             setEGLContextClientVersion(2);
             setRenderer(this);
             setRenderMode(RENDERMODE_WHEN_DIRTY);
-            setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);
+            //setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);
             switch (renderType) {
                 case COMMON:
                     render = new RenderCommon(this, frameW, frameH);

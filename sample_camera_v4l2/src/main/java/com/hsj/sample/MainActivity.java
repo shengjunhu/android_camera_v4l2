@@ -8,11 +8,17 @@ import android.opengl.GLES20;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.hsj.camera.CameraAPI;
@@ -27,7 +33,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * @Author:Hsj
@@ -38,47 +47,39 @@ import java.util.HashMap;
 public final class MainActivity extends AppCompatActivity implements ISurfaceCallback {
 
     private static final String TAG = "MainActivity";
-    //RGB: Usb camera productId and vendorId
-    private static final int RGB_PID = 37424;//37424、12384、0x0c45
-    private static final int RGB_VID = 1443;//1443、3034、0x636b
-    //RGB: frame of width and height
-    private static final int RGB_WIDTH = 640;
-    private static final int RGB_HEIGHT = 480;
-    //IR: Usb camera productId and vendorId
-    private static final int IR_PID = 768;
-    private static final int IR_VID = 11707;
-    //IR: frame of width and height
-    private static final int IR_WIDTH = 640;
-    private static final int IR_HEIGHT = 400;
-    //CameraAPI
-    private CameraAPI cameraRGB, cameraIR;
-    //IRender
+    // Frame width and height
+    private static final int FRAME_WIDTH = 640;
+    private static final int FRAME_HEIGHT = 480;
+    // Usb device: productId and vendorId
+    private int pid;
+    private int vid;
+    // Dialog checked index
+    private int index;
+    // CameraAPI
+    private CameraAPI camera;
+    // IRender
     private IRender render;
     private Surface surface;
+    private LinearLayout ll;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        ll = findViewById(R.id.ll);
         findViewById(R.id.btn_create).setOnClickListener(v -> create());
         findViewById(R.id.btn_start).setOnClickListener(v -> start());
         findViewById(R.id.btn_stop).setOnClickListener(v -> stop());
         findViewById(R.id.btn_destroy).setOnClickListener(v -> destroy());
-        CameraView cameraView = findViewById(R.id.preview);
-        render = cameraView.getRender(RGB_WIDTH, RGB_HEIGHT, CameraView.BEAUTY);
-        //render = cameraView.getRender(IR_WIDTH, IR_HEIGHT, CameraView.DEPTH);
+
+        CameraView cameraView = findViewById(R.id.cameraView);
+        render = cameraView.getRender(FRAME_WIDTH, FRAME_HEIGHT, CameraView.COMMON);
         render.setSurfaceCallback(this);
 
-        //Print usb video productId and vendorId
-        UsbManager mUsbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
-        HashMap<String, UsbDevice> devices = mUsbManager.getDeviceList();
-        for (UsbDevice device : devices.values()) {
-            Log.i(TAG, "pn=" + device.getProductName() + ",pid=" + device.getProductId() + ",vid=" + device.getVendorId());
-        }
-
-        //Request /dev/video* permission
-        boolean result = requestPermission();
-        if (!result) Log.e(TAG, "Request permission failed");
+        //Request permission: /dev/video*
+        boolean ret = requestPermission();
+        showToast("Request permission: " + (ret ? "succeed" : "failed"));
     }
 
     @Override
@@ -91,10 +92,10 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
 
     @Override
     protected void onPause() {
+        super.onPause();
         if (render != null) {
             render.onRender(false);
         }
-        super.onPause();
     }
 
     @Override
@@ -109,64 +110,63 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         destroy();
     }
 
-//==================================================================================================
+//==========================================Menu====================================================
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.item_camera) {
+            showSingleChoiceDialog();
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+//===========================================Camera=================================================
 
     private void create() {
-        if (this.cameraRGB == null) {
+        if (this.camera == null) {
             CameraAPI camera = new CameraAPI();
-            boolean ret = camera.create(RGB_PID, RGB_VID);
-            if (ret) ret = camera.setFrameSize(RGB_WIDTH, RGB_HEIGHT, CameraAPI.FRAME_FORMAT_MJPEG);
-            if (ret) this.cameraRGB = camera;
-        }
-
-        if (this.cameraIR == null) {
-            CameraAPI camera = new CameraAPI();
-            boolean ret = camera.create(IR_PID, IR_VID);
-            if (ret) camera.setFrameSize(IR_WIDTH, IR_HEIGHT, CameraAPI.FRAME_FORMAT_DEPTH);
-            if (ret) this.cameraIR = camera;
+            boolean ret = camera.create(pid, vid);
+            if (ret) ret = camera.setFrameSize(FRAME_WIDTH, FRAME_HEIGHT, CameraAPI.FRAME_FORMAT_MJPEG);
+            if (ret) this.camera = camera;
+        } else {
+            showToast("Camera had benn created");
         }
     }
 
     private void start() {
-        if (this.cameraRGB != null) {
-            if (surface != null) this.cameraRGB.setPreview(surface);
-            this.cameraRGB.setFrameCallback(rgbCallback);
-            this.cameraRGB.start();
-        }
-
-        if (this.cameraIR != null) {
-            this.cameraIR.setFrameCallback(irCallback);
-            //this.cameraIR.setAutoExposure(false);
-            //625->5ms, 312->4ms, 156->3.0ms, 78->2.5ms, 39->1.8ms, 20->1.4ms, 10->1.0ms, 5->0.6ms, 2->0.20ms, 1->0.06ms
-            //this.cameraIR.setExposureLevel(156);
-            //if (surface != null) this.cameraIR.setPreview(this.surface);
-            this.cameraIR.start();
+        if (this.camera != null) {
+            if (surface != null) this.camera.setPreview(surface);
+            this.camera.setFrameCallback(frameCallback);
+            this.camera.start();
+        } else {
+            showToast("Camera have not create");
         }
     }
 
-    private void stop() {
-        if (this.cameraRGB != null) this.cameraRGB.stop();
+    private final IFrameCallback frameCallback = frame -> {
 
-        if (this.cameraIR != null) this.cameraIR.stop();
+    };
+
+    private void stop() {
+        if (this.camera != null) {
+            this.camera.stop();
+        }
     }
 
     private void destroy() {
-        if (this.cameraRGB != null) {
-            this.cameraRGB.destroy();
-            this.cameraRGB = null;
-        }
-
-        if (this.cameraIR != null) {
-            this.cameraIR.destroy();
-            this.cameraIR = null;
+        if (this.camera != null) {
+            this.camera.destroy();
+            this.camera = null;
         }
     }
 
-    @Override
-    public void onSurface(Surface surface) {
-        if (surface == null) stop();
-        this.surface = surface;
-    }
+//=============================================Other================================================
 
     private boolean requestPermission() {
         boolean result;
@@ -198,58 +198,67 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         return result;
     }
 
-//==================================================================================================
+    private void showSingleChoiceDialog() {
+        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+        Collection<UsbDevice> values = usbManager.getDeviceList().values();
+        final UsbDevice[] devices = values.toArray(new UsbDevice[]{});
+        int size = devices.length;
+        if (size == 0) {
+            showToast("No Usb device to be found");
+        } else {
+            // stop and destroy
+            stop();
+            destroy();
+            this.ll.setVisibility(View.GONE);
+            // get Usb devices name
+            String[] items = new String[size];
+            for (int i = 0; i < size; ++i){
+                items[i] = "Device: " + devices[i].getProductName();
+            }
+            // dialog
+            if (index >= size) index = 0;
+            AlertDialog.Builder ad = new AlertDialog.Builder(this);
+            ad.setTitle(R.string.select_usb_device);
+            ad.setSingleChoiceItems(items, index, (dialog, which) -> index = which);
+            ad.setPositiveButton(R.string.btn_confirm, (dialog, which) -> {
+                this.pid = devices[index].getProductId();
+                this.vid = devices[index].getVendorId();
+                this.ll.setVisibility(View.VISIBLE);
+            });
+            ad.show();
+        }
+    }
 
-    private final IFrameCallback rgbCallback = frame -> {
-
-    };
-
-    private final IFrameCallback irCallback = frame -> {
-
-    };
-
-//==================================================================================================
+    @Override
+    public void onSurface(Surface surface) {
+        if (surface == null) stop();
+        this.surface = surface;
+    }
 
     private void showToast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
-    /**
-     * 保存ByteBuffer到文件
-     *
-     * @param dstFile 存在文件
-     * @param data    数据内容
-     * @return 结果
-     */
-    public static boolean saveFile(String dstFile, ByteBuffer data) {
+    private boolean saveFile(String dstFile, ByteBuffer data) {
         if (TextUtils.isEmpty(dstFile)) return false;
-        boolean result = true;
+        boolean ret = false;
         FileChannel fc = null;
         try {
             fc = new FileOutputStream(dstFile).getChannel();
             fc.write(data);
+            ret = true;
         } catch (IOException e) {
             e.printStackTrace();
-            result = false;
         } finally {
-            ioClose(fc);
-        }
-        return result;
-    }
-
-    /**
-     * 关闭IO流
-     *
-     * @param closeable 流
-     */
-    private static void ioClose(Closeable closeable) {
-        if (closeable != null) {
-            try {
-                closeable.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+            if (fc != null) {
+                try {
+                    fc.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
+        return ret;
     }
 
 }
