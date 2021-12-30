@@ -28,7 +28,7 @@ android sample of v4l2 camera
 - Author: shengjunhu
 - Date  : 2021/05/12
 - E-Mail: shengjunhu@foxmail.com
-- GitHub: https://github.com/hushengjun
+- GitHub: https://github.com/shengjunhu
 
 ### About License
 ```
