@@ -21,10 +21,11 @@ extern "C" {
 
 class DecoderHw : public IDecoder {
 private:
-    AMediaCodec* mediaCodec = NULL;
+    AMediaCodec* mediaCodec;
 public:
+    DecoderHw():mediaCodec(NULL){}
+
     ~DecoderHw() override {
-        LOGE(TAG,"--->0");
         if (mediaCodec) {
             AMediaCodec_stop(mediaCodec);
             AMediaCodec_delete(mediaCodec);
@@ -33,11 +34,11 @@ public:
     }
 
     int init(uint16_t width, uint16_t height) override {
+        int ret = -2;
         if (mediaCodec) {
             AMediaCodec_delete(mediaCodec);
             mediaCodec = NULL;
         }
-        int ret = -2;
         //1 create MediaCodec
         mediaCodec = AMediaCodec_createDecoderByType(MIME_TYPE);
         if (mediaCodec) {
@@ -52,18 +53,17 @@ public:
             if (AMEDIA_OK == AMediaCodec_configure(mediaCodec, mediaFormat, NULL, NULL, 0)) {
                 ret = AMediaCodec_start(mediaCodec);
             } else {
+                AMediaCodec_delete(mediaCodec);
+                mediaCodec = NULL;
                 ret = -1;
-                if (mediaCodec) {
-                    AMediaCodec_delete(mediaCodec);
-                    mediaCodec = NULL;
-                }
             }
+            AMediaFormat_delete(mediaFormat);
         }
         return ret;
     }
 
     //3ms
-    uint8_t *convert2YUV(void *raw_buffer, size_t raw_size) override {
+    uint8_t* convert2YUV(void* raw_buffer, size_t raw_size) override {
         size_t out_size;
         //3.1 get input buffer index on buffers
         ssize_t in_buffer_id = AMediaCodec_dequeueInputBuffer(mediaCodec, TIME_OUT_US);
@@ -74,18 +74,19 @@ public:
             memcpy(in_buffer, raw_buffer, raw_size);
             //3.4 submit input buffer to queue buffers of input
             AMediaCodec_queueInputBuffer(mediaCodec, in_buffer_id, 0, raw_size, timeUs(), 0);
+        } else {
+            LOGW(TAG, "Hardware: No available input buffer");
         }
 
         //3.5 get out buffer index of decode by output queue buffers
+        uint8_t* out = NULL;
         AMediaCodecBufferInfo info;
         ssize_t out_buffer_id = AMediaCodec_dequeueOutputBuffer(mediaCodec, &info, 0);
         if (out_buffer_id >= 0) {
-            //3.6 get output buffer by output buffer index
-            uint8_t *out = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
+            //3.6 get output buffer by output buffer index, nv12
+            out = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
             //3.7 release output buffer by output buffer index
             AMediaCodec_releaseOutputBuffer(mediaCodec, out_buffer_id, info.size != 0);
-            //3.8 return nv12
-            return out;
         } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
             LOGW(TAG, "Hardware: media info output buffers changed");
         } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -98,42 +99,8 @@ public:
         } else {
             LOGW(TAG, "Hardware: Unexpected info code: %zd", out_buffer_id);
         }
-
-        if (in_buffer_id < 0) {
-            //当获取输入index不可用时，可采用循环do{}while()获取到输入index为止
-            LOGW(TAG, "Hardware: No available input buffer");
-        } else {
-            //3.2-get input buffer by input buffer index
-            size_t out_size;
-            uint8_t *in_buffer = AMediaCodec_getInputBuffer(mediaCodec, in_buffer_id, &out_size);
-            //3.3-put raw buffer to input buffer
-            memcpy(in_buffer, raw_buffer, raw_size);
-            //3.4-submit input buffer to queue buffers of input
-            AMediaCodec_queueInputBuffer(mediaCodec, in_buffer_id, 0, raw_size, timeUs(), 0);
-            //3.5-get out buffer index of decode by output queue buffers
-            AMediaCodecBufferInfo info;
-            ssize_t out_buffer_id = AMediaCodec_dequeueOutputBuffer(mediaCodec, &info, 0);
-            if (out_buffer_id >= 0) {
-                //3.6-get output buffer by output buffer index
-                uint8_t *out = AMediaCodec_getOutputBuffer(mediaCodec, out_buffer_id, &out_size);
-                //3.7-release output buffer by output buffer index
-                AMediaCodec_releaseOutputBuffer(mediaCodec, out_buffer_id, info.size != 0);
-                //3.8-return nv12
-                return out;
-            } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-                LOGW(TAG, "Hardware: media info output buffers changed");
-            } else if (out_buffer_id == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-                LOGW(TAG, "Hardware: media info output format changed");
-                AMediaFormat *format = AMediaCodec_getOutputFormat(mediaCodec);
-                LOGD(TAG, "AMediaFormat: %s", AMediaFormat_toString(format));
-                AMediaFormat_delete(format);
-            } else if (out_buffer_id == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-                LOGW(TAG, "Hardware: media info try again later");
-            } else {
-                LOGW(TAG, "Hardware: Unexpected info code: %zd", out_buffer_id);
-            }
-        }
-        return NULL;
+        //3.8 return nv12
+        return out;
     }
 
 };
@@ -149,9 +116,11 @@ private:
     int _height = 0;
     int subSample = 0;
     int colorSpace = 0;
-    tjhandle handle = NULL;
-    uint8_t *out_buffer = NULL;
+    tjhandle handle;
+    uint8_t* out_buffer;
 public:
+    DecoderSw():handle(NULL), out_buffer(NULL){}
+
     ~DecoderSw() override {
         //6 destroy handle
         if (out_buffer) {
@@ -175,7 +144,7 @@ public:
     }
 
     //20ms
-    uint8_t *convert2YUV(void *raw_buffer, size_t raw_size) override {
+    uint8_t* convert2YUV(void* raw_buffer, size_t raw_size) override {
         auto *raw = (unsigned char *) raw_buffer;
         //4 get raw_buffer info: subSample = TJSAMP_422
         tjDecompressHeader3(handle, raw, raw_size, &_width, &_height, &subSample, &colorSpace);
@@ -235,6 +204,7 @@ uint8_t* DecoderFactory::convert2YUV(void *raw_buffer, size_t raw_size) {
     if (LIKELY(decoder)) {
         return decoder->convert2YUV(raw_buffer, raw_size);
     } else {
+        LOGW(TAG, "convert2YUV: decoder not init");
         return NULL;
     }
 }

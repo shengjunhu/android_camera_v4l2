@@ -53,7 +53,7 @@ private:
     inline const StatusInfo getStatus() const;
 
     ActionInfo prepareBuffer();
-    static void *loopThread(void *args);
+    static void* loopThread(void *args);
     void loopFrame(JNIEnv *env, CameraAPI *camera);
     void sendFrame(JNIEnv *env, uint8_t *data);
     void renderFrame(uint8_t *data);

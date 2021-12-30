@@ -96,7 +96,7 @@ ActionInfo CameraAPI::prepareBuffer() {
     return ACTION_SUCCESS;
 }
 
-void *CameraAPI::loopThread(void *args) {
+void* CameraAPI::loopThread(void *args) {
     auto *camera = reinterpret_cast<CameraAPI *>(args);
     if (LIKELY(camera)) {
         JavaVM *vm = getVM();
@@ -134,7 +134,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
             LOGE(TAG, "Loop frame failed2: %s", strerror(errno));
             break;
         } else if (camera->frameFormat == FRAME_FORMAT_MJPEG) {
-            //LOGD(TAG, "mjpeg interval time = %lld", timeMs() - time1)
+            //LOGD(TAG, "mjpeg interval time = %ld", timeMs() - time1);
             //time1 = timeMs();
 
             //MJPEG->NV12/YUV422
@@ -146,7 +146,6 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
 
             //Data->Java
             sendFrame(env, data);
-
         } else {
             //LOGD(TAG, "yuyv interval time = %lld", timeMs() - time0)
             //time0 = timeMs();
