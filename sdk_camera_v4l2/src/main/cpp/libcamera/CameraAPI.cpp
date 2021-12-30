@@ -188,11 +188,11 @@ void CameraAPI::sendFrame(JNIEnv *env, uint8_t *data) {
 ActionInfo CameraAPI::connect(unsigned int target_pid, unsigned int target_vid) {
     ActionInfo action = ACTION_SUCCESS;
     if (STATUS_CREATE == getStatus()) {
+        std::string modalias;
         std::string dev_video_name;
         for (int i = 0; i <= MAX_DEV_VIDEO_INDEX; ++i) {
-            dev_video_name.append("video").append(std::to_string(i));
-            std::string modalias;
             int vid = 0, pid = 0;
+            dev_video_name.append("video").append(std::to_string(i));
             if (!(std::ifstream("/sys/class/video4linux/" + dev_video_name + "/device/modalias") >> modalias)) {
                 LOGD(TAG, "dev/%s : read modalias failed", dev_video_name.c_str());
             } else if (modalias.size() < 14 || modalias.substr(0, 5) != "usb:v" || modalias[9] != 'p') {
@@ -208,11 +208,12 @@ ActionInfo CameraAPI::connect(unsigned int target_pid, unsigned int target_vid) 
                 dev_video_name.insert(0, "dev/");
                 break;
             } else {
+                modalias.clear();
                 dev_video_name.clear();
             }
         }
         if (dev_video_name.empty()) {
-            LOGW(TAG, "open: no target device");
+            LOGW(TAG, "connect: no target device");
             action = ACTION_ERROR_NO_DEVICE;
         } else {
             const char *deviceName = dev_video_name.data();
