@@ -83,6 +83,6 @@ dependencies {
     //LeakCanary
     debugImplementation rootProject.ext.dependencies.leak_canary
 
-    //sdk_camera_v4l2
+    //sdk_v4l2_camera
     implementation project(path: ':sdk_v4l2_camera')
 }

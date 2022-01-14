@@ -1,5 +1,5 @@
-# android_camera_v4l2
-android sample of v4l2 camera
+# android_v4l2_camera
+🔥 V4L2 Camera on Android
 
 ### Image
 <img src="doc/img/screenshot.png" width="320px"/>
