@@ -36,4 +36,4 @@ Copyright (c) 2020 shengjunhu
 Please compliance with the MIT license
 ```
 
-[1]: https://github.com/shengjunhu/android_camera_v4l2/raw/master/doc/apk/android_camera_v4l2.apk
+[1]: https://github.com/shengjunhu/android_v4l2_camera/raw/master/doc/apk/android_v4l2_camera.apk

@@ -57,7 +57,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "android_camera_v4l2_v${variant.versionCode}.apk"
+            outputFileName = "android_v4l2_camera_v${variant.versionCode}.apk"
         }
     }
 
