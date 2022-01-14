@@ -33,7 +33,7 @@
 ### About License
 ```
 Copyright (c) 2020 shengjunhu
-Please compliance with the MIT license
+Please comply with the relevant third party libraries license
 ```
 
 [1]: https://github.com/shengjunhu/android_v4l2_camera/raw/master/doc/apk/android_v4l2_camera.apk
