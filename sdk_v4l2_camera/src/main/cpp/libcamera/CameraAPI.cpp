@@ -23,7 +23,7 @@ extern "C" {
 
 #define TAG "CameraAPI"
 #define MAX_BUFFER_COUNT 4
-#define MAX_DEV_VIDEO_INDEX 9
+#define MAX_DEV_VIDEO_INDEX 99
 
 CameraAPI::CameraAPI() :
         fd(0),
@@ -217,7 +217,7 @@ ActionInfo CameraAPI::connect(unsigned int target_pid, unsigned int target_vid) 
             action = ACTION_ERROR_NO_DEVICE;
         } else {
             const char *deviceName = dev_video_name.data();
-            fd = open(deviceName, O_CREAT | O_RDWR | O_NONBLOCK, S_IRWXU);
+            fd = open(deviceName, O_RDWR | O_NONBLOCK, S_IRWXU);
             if (0 > fd) {
                 LOGE(TAG, "open: %s failed, %s", deviceName, strerror(errno));
                 action = ACTION_ERROR_OPEN_FAIL;
@@ -480,10 +480,10 @@ ActionInfo CameraAPI::close() {
         }
         //5-release frameCallback
         JNIEnv *env = getEnv();
-        if (env && !frameCallback_onFrame) {
+        if (env && frameCallback_onFrame) {
             env->DeleteGlobalRef(frameCallback);
-            frameCallback = NULL;
             frameCallback_onFrame = NULL;
+            frameCallback = NULL;
         }
     } else {
         LOGW(TAG, "close: error status, %d", getStatus());

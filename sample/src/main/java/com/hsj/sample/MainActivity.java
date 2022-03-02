@@ -1,42 +1,31 @@
 package com.hsj.sample;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
-import android.opengl.GLES20;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-
 import com.hsj.camera.CameraAPI;
 import com.hsj.camera.CameraView;
 import com.hsj.camera.IFrameCallback;
 import com.hsj.camera.IRender;
 import com.hsj.camera.ISurfaceCallback;
-
-import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 
 /**
  * @Author:Hsj
