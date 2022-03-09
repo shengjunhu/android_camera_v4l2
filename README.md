@@ -9,6 +9,15 @@
 | :--------:                      |
 | Scan QR code or [Download][1]   |
 
+### App Running Environment
+```text
+If your app can't access /dev/video* on Android device，you need grant read and write permission.
+
+adb root
+adb shell
+chmod 666 /dev/video*
+```
+
 ### Add Function
 - 1.FPS 30 of Dual cameras.
 - 1.Package Android camera based on V4L2 protocol.
@@ -35,7 +44,7 @@
 - [libyuv][3]
 
 ### About License
-```
+```text
 Copyright (c) 2020 shengjunhu
 Please comply with the relevant third party libraries license
 ```
