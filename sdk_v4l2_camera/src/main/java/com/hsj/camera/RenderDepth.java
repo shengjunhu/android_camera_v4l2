@@ -58,7 +58,7 @@ final class RenderDepth implements IRender {
     //纹理
     private int[] textures = new int[1];
 
-    public RenderDepth(GLSurfaceView glSurfaceView, int frameW, int frameH) {
+    public RenderDepth(GLSurfaceView glSurfaceView) {
         this.glSurfaceView = glSurfaceView;
         //创建顶点坐标
         ByteBuffer bb1 = ByteBuffer.allocateDirect(32);

@@ -12,14 +12,18 @@ import android.view.Surface;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.util.Pair;
+
 import com.hsj.camera.CameraAPI;
 import com.hsj.camera.CameraView;
 import com.hsj.camera.IFrameCallback;
 import com.hsj.camera.IRender;
 import com.hsj.camera.ISurfaceCallback;
+
 import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -36,11 +40,9 @@ import java.util.Collection;
 public final class MainActivity extends AppCompatActivity implements ISurfaceCallback {
 
     private static final String TAG = "MainActivity";
-    // Frame width and height
-    private static final int FRAME_WIDTH = 640;
-    private static final int FRAME_HEIGHT = 480;
-    // Usb device: productId and vendorId
+    // Usb device: productId
     private int pid;
+    // Usb device: vendorId
     private int vid;
     // Dialog checked index
     private int index;
@@ -55,16 +57,14 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        ll = findViewById(R.id.ll);
         findViewById(R.id.btn_create).setOnClickListener(v -> create());
         findViewById(R.id.btn_start).setOnClickListener(v -> start());
         findViewById(R.id.btn_stop).setOnClickListener(v -> stop());
         findViewById(R.id.btn_destroy).setOnClickListener(v -> destroy());
-
+        ll = findViewById(R.id.ll);
         CameraView cameraView = findViewById(R.id.cameraView);
-        render = cameraView.getRender(FRAME_WIDTH, FRAME_HEIGHT, CameraView.COMMON);
-        render.setSurfaceCallback(this);
+        this.render = cameraView.getRender(CameraView.COMMON);
+        this.render.setSurfaceCallback(this);
 
         //Request permission: /dev/video*
         boolean ret = requestPermission();
@@ -121,8 +121,17 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         if (this.camera == null) {
             CameraAPI camera = new CameraAPI();
             boolean ret = camera.create(pid, vid);
-            if (ret) ret = camera.setFrameSize(FRAME_WIDTH, FRAME_HEIGHT, CameraAPI.FRAME_FORMAT_MJPEG);
-            if (ret) this.camera = camera;
+            int[][] supportFrameSize = camera.getSupportFrameSize();
+            if (supportFrameSize == null || supportFrameSize.length == 0) {
+                showToast("Get support preview size failed.");
+            } else {
+                final int index = supportFrameSize.length / 2;
+                final int width = supportFrameSize[index][0];
+                final int height = supportFrameSize[index][1];
+                Log.d(TAG, "width=" + width + ", height=" + height);
+                if (ret) ret = camera.setFrameSize(width, height, CameraAPI.FRAME_FORMAT_MJPEG);
+                if (ret) this.camera = camera;
+            }
         } else {
             showToast("Camera had benn created");
         }
@@ -138,9 +147,7 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         }
     }
 
-    private final IFrameCallback frameCallback = frame -> {
-
-    };
+    private final IFrameCallback frameCallback = frame -> {};
 
     private void stop() {
         if (this.camera != null) {
@@ -201,7 +208,7 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
             this.ll.setVisibility(View.GONE);
             // get Usb devices name
             String[] items = new String[size];
-            for (int i = 0; i < size; ++i){
+            for (int i = 0; i < size; ++i) {
                 items[i] = "Device: " + devices[i].getProductName();
             }
             // dialog

@@ -57,7 +57,7 @@ final class RenderCommon implements IRender {
     //纹理
     private int[] textures = new int[1];
 
-    public RenderCommon(GLSurfaceView glSurfaceView, int frameW, int frameH) {
+    public RenderCommon(GLSurfaceView glSurfaceView) {
         this.glSurfaceView = glSurfaceView;
         //创建顶点坐标
         ByteBuffer bb1 = ByteBuffer.allocateDirect(32);

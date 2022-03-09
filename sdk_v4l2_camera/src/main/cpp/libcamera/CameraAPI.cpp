@@ -52,7 +52,7 @@ inline const StatusInfo CameraAPI::getStatus() const { return status; }
 ActionInfo CameraAPI::prepareBuffer() {
     //1-request buffers
     struct v4l2_requestbuffers buffer1;
-    SAFE_CLEAR(buffer1)
+    //SAFE_CLEAR(buffer1)
     buffer1.count = MAX_BUFFER_COUNT;
     buffer1.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buffer1.memory = V4L2_MEMORY_MMAP;
@@ -65,7 +65,7 @@ ActionInfo CameraAPI::prepareBuffer() {
     buffers = (struct VideoBuffer *) calloc(MAX_BUFFER_COUNT, sizeof(*buffers));
     for (unsigned int i = 0; i < MAX_BUFFER_COUNT; ++i) {
         struct v4l2_buffer buffer2;
-        SAFE_CLEAR(buffer2)
+        //SAFE_CLEAR(buffer2)
         buffer2.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buffer2.memory = V4L2_MEMORY_MMAP;
         buffer2.index = i;
@@ -84,7 +84,7 @@ ActionInfo CameraAPI::prepareBuffer() {
     //3-v4l2_buffer
     for (unsigned int i = 0; i < MAX_BUFFER_COUNT; ++i) {
         struct v4l2_buffer buffer3;
-        SAFE_CLEAR(buffer3)
+        //SAFE_CLEAR(buffer3)
         buffer3.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buffer3.memory = V4L2_MEMORY_MMAP;
         buffer3.index = i;
@@ -243,7 +243,7 @@ ActionInfo CameraAPI::connect(unsigned int target_pid, unsigned int target_vid) 
 ActionInfo CameraAPI::autoExposure(bool isAuto) {
     if (STATUS_OPEN <= getStatus()) {
         struct v4l2_control ctrl;
-        SAFE_CLEAR(ctrl)
+        //SAFE_CLEAR(ctrl)
         ctrl.id = V4L2_CID_EXPOSURE_AUTO;
         ctrl.value = isAuto ? V4L2_EXPOSURE_AUTO : V4L2_EXPOSURE_MANUAL;
         if (0 > ioctl(fd, VIDIOC_S_CTRL, &ctrl)) {
@@ -262,7 +262,7 @@ ActionInfo CameraAPI::autoExposure(bool isAuto) {
 ActionInfo CameraAPI::updateExposure(unsigned int level) {
     if (STATUS_OPEN <= getStatus()) {
         struct v4l2_control ctrl;
-        SAFE_CLEAR(ctrl)
+        //SAFE_CLEAR(ctrl)
         ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
         ctrl.value = level;
         if (0 > ioctl(fd, VIDIOC_S_CTRL, &ctrl)) {
@@ -278,11 +278,45 @@ ActionInfo CameraAPI::updateExposure(unsigned int level) {
     }
 }
 
+ActionInfo CameraAPI::getSupportSize(std::vector<std::pair<int, int>> &sizes) {
+    if (STATUS_OPEN <= getStatus()) {
+        struct v4l2_frmsizeenum frmsize;
+        struct v4l2_fmtdesc fmtdesc;
+        fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        fmtdesc.index = 0;
+        while (ioctl(fd,VIDIOC_ENUM_FMT, &fmtdesc) == 0){
+            frmsize.pixel_format = fmtdesc.pixelformat;
+            frmsize.index = 0;
+            while (ioctl(fd,VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0){
+                if (fmtdesc.flags == V4L2_FMT_FLAG_COMPRESSED){ //Compressed size
+                    if (frmsize.type == V4L2_FRMIVAL_TYPE_DISCRETE) {
+                        sizes.emplace_back(frmsize.discrete.width, frmsize.discrete.height);
+                    }  else {
+                        LOGE(TAG, "getSupportSize(): type=%d", frmsize.type);
+                    }
+                } else { //UnCompressed size
+                    if (frmsize.type == V4L2_FRMIVAL_TYPE_DISCRETE) {
+                        //sizes.emplace_back(frmsize.discrete.width, frmsize.discrete.height);
+                    }  else {
+                        LOGE(TAG, "getSupportSize(): type=%d", frmsize.type);
+                    }
+                }
+                frmsize.index++;
+            }
+            fmtdesc.index++;
+        }
+        return ACTION_SUCCESS;
+    } else {
+        LOGW(TAG, "getSupportSize: error status, %d", getStatus());
+        return ACTION_ERROR_GET_W_H;
+    }
+}
+
 ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
     if (STATUS_OPEN == getStatus()) {
         //1-set frame width and height
         struct v4l2_format format;
-        SAFE_CLEAR(format)
+        //SAFE_CLEAR(format)
         format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         format.fmt.pix.width = width;
         format.fmt.pix.height = height;
@@ -310,7 +344,7 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
 
         //2-set frame fps
         struct v4l2_streamparm parm;
-        SAFE_CLEAR(parm)
+        //SAFE_CLEAR(parm)
         parm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         parm.parm.capture.timeperframe.numerator = 1;
         if (frame_format == FRAME_FORMAT_MJPEG) {

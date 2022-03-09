@@ -18,7 +18,7 @@ public final class CameraView extends GLSurfaceView implements GLSurfaceView.Ren
     private static final String TAG = "CameraView";
     public static final int COMMON = 0;
     public static final int BEAUTY = 1;
-    public static final int DEPTH  = 2;
+    public static final int DEPTH = 2;
     private IRender render;
 
     public CameraView(Context context) {
@@ -29,25 +29,24 @@ public final class CameraView extends GLSurfaceView implements GLSurfaceView.Ren
         super(context, attrs);
         setZOrderOnTop(true);
         setZOrderMediaOverlay(true);
+
+        setEGLContextClientVersion(2);
+        setRenderer(this);
+        setRenderMode(RENDERMODE_WHEN_DIRTY);
+        //setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);
     }
 
-    public IRender getRender(int frameW, int frameH, int renderType) {
-        if (frameW <= 0 || frameH <= 0) {
-            throw new IllegalArgumentException("Frame width and height is unavailable");
-        } else {
-            setEGLContextClientVersion(2);
-            setRenderer(this);
-            setRenderMode(RENDERMODE_WHEN_DIRTY);
-            //setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);
+    public IRender getRender(int renderType) {
+        if (render == null) {
             switch (renderType) {
                 case COMMON:
-                    render = new RenderCommon(this, frameW, frameH);
+                    render = new RenderCommon(this);
                     break;
                 case BEAUTY:
-                    render = new RenderBeauty(this, frameW, frameH);
+                    render = new RenderBeauty(this);
                     break;
                 case DEPTH:
-                    render = new RenderDepth(this, frameW, frameH);
+                    render = new RenderDepth(this);
                     break;
                 default:
                     throw new IllegalArgumentException("Not support render type: " + renderType);

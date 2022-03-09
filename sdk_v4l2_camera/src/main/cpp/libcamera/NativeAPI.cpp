@@ -65,15 +65,34 @@ static ActionInfo nativeSetExposure(JNIEnv *env, jobject thiz, CAMERA_ID cameraI
     return status;
 }
 
-static ActionInfo nativeFrameCallback(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jobject frame_callback) {
+static jobjectArray nativeSupportSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
     auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
-    ActionInfo status = ACTION_ERROR_DESTROY;
+    jobjectArray objArr = nullptr;
     if (LIKELY(camera)) {
-        jobject _frame_callback = env->NewGlobalRef(frame_callback);
-        status = camera->setFrameCallback(env, _frame_callback);
+        std::vector<std::pair<int, int>> sizes;
+        ActionInfo status = camera->getSupportSize(sizes);
+        if (status == ACTION_SUCCESS) {
+            int length = sizes.size();
+            if (length > 0){
+                jclass cls = env->FindClass("[I");
+                objArr = env->NewObjectArray(length, cls,nullptr);
+                for(size_t i = 0; i < length; i++) {
+                    jint size[2] = {sizes[i].first, sizes[i].second};
+                    jintArray arr = env->NewIntArray(2);
+                    env->SetIntArrayRegion(arr, 0, 2, size);
+                    env->SetObjectArrayElement(objArr, i, arr);
+                    env->DeleteLocalRef(arr);
+                }
+            } else {
+                LOGE(TAG, "camera->getSupportSize(): empty.");
+            }
+            LOGI(TAG, "camera->getSupportSize(): length:%d", length);
+        } else {
+            LOGE(TAG, "camera->getSupportSize(): status:%d", status);
+        }
+        std::vector<std::pair<int, int>>().swap(sizes);
     }
-    LOGD(TAG, "camera->setFrameCallback(): %d", status);
-    return status;
+    return objArr;
 }
 
 static ActionInfo nativeFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jint width, jint height, jint frameFormat) {
@@ -88,6 +107,17 @@ static ActionInfo nativeFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId,
         }
     }
     LOGD(TAG, "camera->setFrameSize(): %d", status);
+    return status;
+}
+
+static ActionInfo nativeFrameCallback(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jobject frame_callback) {
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
+    ActionInfo status = ACTION_ERROR_DESTROY;
+    if (LIKELY(camera)) {
+        jobject _frame_callback = env->NewGlobalRef(frame_callback);
+        status = camera->setFrameCallback(env, _frame_callback);
+    }
+    LOGD(TAG, "camera->setFrameCallback(): %d", status);
     return status;
 }
 
@@ -141,6 +171,7 @@ static const JNINativeMethod METHODS[] = {
         {"nativeAutoExposure",  "(JZ)I",                               (void *) nativeAutoExposure},
         {"nativeSetExposure",   "(JI)I",                               (void *) nativeSetExposure},
         {"nativeFrameCallback", "(JLcom/hsj/camera/IFrameCallback;)I", (void *) nativeFrameCallback},
+        {"nativeSupportSize",   "(J)[[I",                              (void *) nativeSupportSize},
         {"nativeFrameSize",     "(JIII)I",                             (void *) nativeFrameSize},
         {"nativePreview",       "(JLandroid/view/Surface;)I",          (void *) nativePreview},
         {"nativeStart",         "(J)I",                                (void *) nativeStart},

@@ -5,6 +5,7 @@
 #ifndef ANDROID_CAMERA_V4L2_CAMERAAPI_H
 #define ANDROID_CAMERA_V4L2_CAMERAAPI_H
 
+#include <vector>
 #include <pthread.h>
 #include "NativeAPI.h"
 #include "CameraView.h"
@@ -64,6 +65,7 @@ public:
     ActionInfo connect(unsigned int pid, unsigned int vid);
     ActionInfo autoExposure(bool isAuto);
     ActionInfo updateExposure(unsigned int level);
+    ActionInfo getSupportSize(std::vector<std::pair<int, int>> &sizes);
     ActionInfo setFrameSize(int width, int height, int frame_format);
     ActionInfo setFrameCallback(JNIEnv *env, jobject frame_callback);
     ActionInfo setPreview(ANativeWindow *window);
