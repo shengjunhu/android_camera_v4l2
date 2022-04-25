@@ -13,8 +13,8 @@
 ```text
 If your app can't access /dev/video* on Android device，you need grant read and write permission.
 
-adb root
 adb shell
+su
 chmod 666 /dev/video*
 ```
 
